@@ -134,6 +134,12 @@ void janus_set_no_media_timer(uint timer);
 /*! \brief Method to get the current no-media event timer (see above)
  * @returns The current no-media event timer */
 uint janus_get_no_media_timer(void);
+/*! \brief Method to modify the event handler statistics period (i.e., the number of seconds that should pass before Janus notifies event handlers about media statistics for a PeerConnection)
+ * @param[in] timer The new timer value, in seconds */
+void janus_ice_set_event_stats_period(int period);
+/*! \brief Method to get the current event handler statistics period (see above)
+ * @returns The current event handler stats period */
+int janus_ice_get_event_stats_period(void);
 /*! \brief Method to check whether libnice debugging has been enabled (http://nice.freedesktop.org/libnice/libnice-Debug-messages.html)
  * @returns True if libnice debugging is enabled, FALSE otherwise */
 gboolean janus_ice_is_ice_debugging_enabled(void);
@@ -353,6 +359,12 @@ struct janus_ice_stream {
 	guint32 video_ssrc_peer;
 	/*! \brief Video retransmissions SSRC of the peer for this stream (may be bundled) */
 	guint32 video_ssrc_peer_rtx;
+	/*! \brief Video SSRC (simulcasted 1) of the peer for this stream (may be bundled) */
+	guint32 video_ssrc_peer_sim_1;
+	/*! \brief Video SSRC (simulcasted 2) of the peer for this stream (may be bundled) */
+	guint32 video_ssrc_peer_sim_2;
+	/*! \brief Array of RTP Stream IDs (for Firefox simulcasting, if enabled) */
+	char *rid[3];
 	/*! \brief List of payload types we can expect for audio */
 	GList *audio_payload_types;
 	/*! \brief List of payload types we can expect for video */
@@ -363,6 +375,14 @@ struct janus_ice_stream {
 	rtcp_context *audio_rtcp_ctx;
 	/*! \brief RTCP context for the video stream (may be bundled) */
 	rtcp_context *video_rtcp_ctx;
+	/*! \brief First received audio NTP timestamp */
+	gint64 audio_first_ntp_ts;
+	/*! \brief First received audio RTP timestamp */
+	guint32 audio_first_rtp_ts;
+	/*! \brief First received video NTP timestamp */
+	gint64 video_first_ntp_ts;
+	/*! \brief First received video NTP RTP timestamp */
+	guint32 video_first_rtp_ts;
 	/*! \brief Last sent audio RTP timestamp */
 	guint32 audio_last_ts;
 	/*! \brief Last sent video RTP timestamp */
@@ -412,10 +432,18 @@ struct janus_ice_component {
 	gchar *selected_pair;
 	/*! \brief Whether the setup of remote candidates for this component has started or not */
 	gboolean process_started;
+	/*! \brief Timer to check when we should consider ICE as failed */
+	GSource *icestate_source;
+	/*! \brief Time of when we first detected an ICE failed (we'll need this for the timer above) */
+	gint64 icefailed_detected;
 	/*! \brief Re-transmission timer for DTLS */
-	GSource *source;
+	GSource *dtlsrt_source;
 	/*! \brief DTLS-SRTP stack */
 	janus_dtls_srtp *dtls;
+	/*! \brief Whether we should do NACKs (in or out) for audio */
+	gboolean do_audio_nacks;
+	/*! \brief Whether we should do NACKs (in or out) for video */
+	gboolean do_video_nacks;
 	/*! \brief List of previously sent janus_rtp_packet RTP packets, in case we receive NACKs */
 	GList *retransmit_buffer;
 	/*! \brief Last time a log message about sending retransmits was printed */
@@ -519,51 +547,9 @@ void janus_ice_component_free(GHashTable *container, janus_ice_component *compon
 ///@}
 
 
-/** @name Janus ICE handle callbacks
+/** @name Janus ICE media relaying callbacks
  */
 ///@{
-/*! \brief libnice callback to notify when candidates have been gathered for an ICE agent
- * @param[in] agent The libnice agent for which the callback applies
- * @param[in] stream_id The stream ID for which the callback applies
- * @param[in] ice Opaque pointer to the Janus ICE handle associated with the libnice ICE agent */
-void janus_ice_cb_candidate_gathering_done (NiceAgent *agent, guint stream_id, gpointer ice);
-/*! \brief libnice callback to notify when the state of a component changes for an ICE agent
- * @param[in] agent The libnice agent for which the callback applies
- * @param[in] stream_id The stream ID for which the callback applies
- * @param[in] component_id The component ID for which the callback applies
- * @param[in] state New ICE state of the component
- * @param[in] ice Opaque pointer to the Janus ICE handle associated with the libnice ICE agent */
-void janus_ice_cb_component_state_changed (NiceAgent *agent, guint stream_id, guint component_id, guint state, gpointer ice);
-/*! \brief libnice callback to notify when a pair of candidates has been selected for an ICE agent
- * @param[in] agent The libnice agent for which the callback applies
- * @param[in] stream_id The stream ID for which the callback applies
- * @param[in] component_id The component ID for which the callback applies
- * @param[in] local Local candidate (or foundation)
- * @param[in] remote Remote candidate (or foundation)
- * @param[in] ice Opaque pointer to the Janus ICE handle associated with the libnice ICE agent */
-#ifndef HAVE_LIBNICE_TCP
-void janus_ice_cb_new_selected_pair (NiceAgent *agent, guint stream_id, guint component_id, gchar *local, gchar *remote, gpointer ice);
-#else
-void janus_ice_cb_new_selected_pair (NiceAgent *agent, guint stream_id, guint component_id, NiceCandidate *local, NiceCandidate *remote, gpointer ice);
-#endif
-/*! \brief libnice callback to notify when a new remote candidate has been discovered for an ICE agent
- * @param[in] agent The libnice agent for which the callback applies
- * @param[in] candidate The libnice candidate that has been discovered
- * @param[in] ice Opaque pointer to the Janus ICE handle associated with the libnice ICE agent */
-#ifndef HAVE_LIBNICE_TCP
-void janus_ice_cb_new_remote_candidate (NiceAgent *agent, guint stream_id, guint component_id, gchar *candidate, gpointer ice);
-#else
-void janus_ice_cb_new_remote_candidate (NiceAgent *agent, NiceCandidate *candidate, gpointer ice);
-#endif
-/*! \brief libnice callback to notify when data has been received by an ICE agent
- * @param[in] agent The libnice agent for which the callback applies
- * @param[in] stream_id The stream ID for which the callback applies
- * @param[in] component_id The component ID for which the callback applies
- * @param[in] len Length of the data buffer
- * @param[in] buf Data buffer
- * @param[in] ice Opaque pointer to the Janus ICE handle associated with the libnice ICE agent */
-void janus_ice_cb_nice_recv (NiceAgent *agent, guint stream_id, guint component_id, guint len, gchar *buf, gpointer ice);
-
 /*! \brief Gateway RTP callback, called when a plugin has an RTP packet to send to a peer
  * @param[in] handle The Janus ICE handle associated with the peer
  * @param[in] video Whether this is an audio or a video frame

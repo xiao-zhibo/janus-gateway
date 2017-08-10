@@ -146,7 +146,7 @@ static struct libwebsocket_context *wss = NULL, *swss = NULL,
 #endif
 /* libwebsockets sessions that have been closed */
 static GList *old_wss;
-static janus_mutex old_wss_mutex;
+static janus_mutex old_wss_mutex = JANUS_MUTEX_INITIALIZER;
 /* Callbacks for HTTP-related events (automatically rejected) */
 static int janus_websockets_callback_http(
 #ifdef HAVE_LIBWEBSOCKETS_NEWAPI
@@ -428,7 +428,6 @@ int janus_websockets_init(janus_transport_callbacks *callback, const char *confi
 		JANUS_LOG(LOG_VERB, "libwebsockets logging: %d\n", ws_log_level);
 		lws_set_log_level(ws_log_level, NULL);
 		old_wss = NULL;
-		janus_mutex_init(&old_wss_mutex);
 
 		/* Any ACL for either the Janus or Admin API? */
 		item = janus_config_get_item_drilldown(config, "general", "ws_acl");
@@ -1085,10 +1084,14 @@ static int janus_websockets_common_callback(
 		case LWS_CALLBACK_ESTABLISHED: {
 			/* Is there any filtering we should apply? */
 			char name[256], ip[256];
+#ifdef HAVE_LIBWEBSOCKETS_PEER_SIMPLE
+			lws_get_peer_simple(wsi, name, 256);
+#else
 #ifdef HAVE_LIBWEBSOCKETS_NEWAPI
 			lws_get_peer_addresses(wsi, lws_get_socket_fd(wsi), name, 256, ip, 256);
 #else
 			libwebsockets_get_peer_addresses(this, wsi, libwebsocket_get_socket_fd(wsi), name, 256, ip, 256);
+#endif
 #endif
 			JANUS_LOG(LOG_VERB, "[%s-%p] WebSocket connection opened from %s by %s\n", log_prefix, wsi, ip, name);
 			if(!janus_websockets_is_allowed(ip, admin)) {

@@ -106,7 +106,7 @@ void *janus_dtls_sctp_setup_thread(void *data);
 #endif
 
 
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
+#if OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER)
 /*
  * DTLS locking stuff to make OpenSSL thread safe (not needed for 1.1.0)
  *
@@ -310,7 +310,11 @@ error:
 gint janus_dtls_srtp_init(const char* server_pem, const char* server_key) {
 	const char *crypto_lib = NULL;
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
+#if defined(LIBRESSL_VERSION_NUMBER)
+	crypt_lib = "LibreSSL"
+#else
 	crypto_lib = "OpenSSL pre-1.1.0";
+#endif
 	/* First of all make OpenSSL thread safe (see note above on issue #316) */
 	janus_dtls_locks = g_malloc0(sizeof(*janus_dtls_locks) * CRYPTO_num_locks());
 	int l=0;
@@ -328,7 +332,7 @@ gint janus_dtls_srtp_init(const char* server_pem, const char* server_key) {
 	JANUS_LOG(LOG_INFO, "Crypto: %s\n", crypto_lib);
 
 	/* Go on and create the DTLS context */
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
+#if OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER)
 	ssl_ctx = SSL_CTX_new(DTLSv1_method());
 #else
 	ssl_ctx = SSL_CTX_new(DTLS_method());
@@ -928,20 +932,15 @@ gboolean janus_dtls_retry(gpointer stack) {
 		return FALSE;
 	janus_ice_stream *stream = component->stream;
 	if(!stream)
-		return FALSE;
+		goto stoptimer;
 	janus_ice_handle *handle = stream->handle;
 	if(!handle)
-		return FALSE;
+		goto stoptimer;
 	if(janus_flags_is_set(&handle->webrtc_flags, JANUS_ICE_HANDLE_WEBRTC_STOP))
-		return FALSE;
+		goto stoptimer;
 	if(dtls->dtls_state == JANUS_DTLS_STATE_CONNECTED) {
-		JANUS_LOG(LOG_VERB, "[%"SCNu64"]  DTLS already set up, disabling retransmission timer!\n", handle->handle_id);
-		if(component->source != NULL) {
-			g_source_destroy(component->source);
-			g_source_unref(component->source);
-			component->source = NULL;
-		}
-		return FALSE;
+		JANUS_LOG(LOG_VERB, "[%"SCNu64"] DTLS already set up, disabling retransmission timer!\n", handle->handle_id);
+		goto stoptimer;
 	}
 	struct timeval timeout = {0};
 	DTLSv1_get_timeout(dtls->ssl, &timeout);
@@ -957,6 +956,14 @@ gboolean janus_dtls_retry(gpointer stack) {
 		janus_dtls_fd_bridge(dtls);
 	}
 	return TRUE;
+
+stoptimer:
+	if(component->dtlsrt_source != NULL) {
+		g_source_destroy(component->dtlsrt_source);
+		g_source_unref(component->dtlsrt_source);
+		component->dtlsrt_source = NULL;
+	}
+	return FALSE;
 }
 
 

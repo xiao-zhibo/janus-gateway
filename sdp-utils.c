@@ -95,6 +95,24 @@ janus_sdp_mline *janus_sdp_mline_find(janus_sdp *sdp, janus_sdp_mtype type) {
 	return NULL;
 }
 
+int janus_sdp_mline_remove(janus_sdp *sdp, janus_sdp_mtype type) {
+	if(sdp == NULL)
+		return -1;
+	GList *ml = sdp->m_lines;
+	while(ml) {
+		janus_sdp_mline *m = (janus_sdp_mline *)ml->data;
+		if(m->type == type) {
+			/* Found! */
+			sdp->m_lines = g_list_remove(sdp->m_lines, m);
+			janus_sdp_mline_destroy(m);
+			return 0;
+		}
+		ml = ml->next;
+	}
+	/* If we got here, we couldn't the m-line */
+	return -2;
+}
+
 janus_sdp_attribute *janus_sdp_attribute_create(const char *name, const char *value, ...) {
 	if(!name)
 		return NULL;
@@ -495,7 +513,7 @@ int janus_sdp_remove_payload_type(janus_sdp *sdp, int pt) {
 		GList *ma = m->attributes;
 		while(ma) {
 			janus_sdp_attribute *a = (janus_sdp_attribute *)ma->data;
-			if(atoi(a->value) == pt) {
+			if(a->value && atoi(a->value) == pt) {
 				m->attributes = g_list_remove(m->attributes, a);
 				ma = m->attributes;
 				janus_sdp_attribute_destroy(a);
@@ -659,7 +677,6 @@ const char *janus_sdp_get_codec_rtpmap(const char *codec) {
 char *janus_sdp_write(janus_sdp *imported) {
 	if(!imported)
 		return NULL;
-	gboolean success = TRUE;
 	char *sdp = g_malloc0(JANUS_BUFSIZE), buffer[512];
 	*sdp = '\0';
 	/* v= */
@@ -764,11 +781,6 @@ char *janus_sdp_write(janus_sdp *imported) {
 			temp2 = temp2->next;
 		}
 		temp = temp->next;
-	}
-	if(!success) {
-		/* FIXME Never happens right now? */
-		g_free(sdp);
-		sdp = NULL;
 	}
 	return sdp;
 }
@@ -1156,8 +1168,6 @@ janus_sdp *janus_sdp_generate_answer(janus_sdp *offer, ...) {
 					am->fmts = g_list_append(am->fmts, g_strdup(fmt_str));
 				fmt = fmt->next;
 			}
-			janus_sdp_attribute *aa = janus_sdp_attribute_create("sctmap", "5000 webrtc-datachannel 16");
-			am->attributes = g_list_append(am->attributes, aa);
 		}
 		temp = temp->next;
 	}

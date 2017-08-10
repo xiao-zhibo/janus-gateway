@@ -225,7 +225,7 @@ typedef struct janus_voicemail_session {
 } janus_voicemail_session;
 static GHashTable *sessions;
 static GList *old_sessions;
-static janus_mutex sessions_mutex;
+static janus_mutex sessions_mutex = JANUS_MUTEX_INITIALIZER;
 
 static char *recordings_path = NULL;
 static char *recordings_base = NULL;
@@ -324,7 +324,6 @@ int janus_voicemail_init(janus_callbacks *callback, const char *config_path) {
 		janus_config_print(config);
 	
 	sessions = g_hash_table_new(NULL, NULL);
-	janus_mutex_init(&sessions_mutex);
 	messages = g_async_queue_new_full((GDestroyNotify) janus_voicemail_message_free);
 	/* This is the callback we'll need to invoke to contact the gateway */
 	gateway = callback;
@@ -359,7 +358,7 @@ int janus_voicemail_init(janus_callbacks *callback, const char *config_path) {
 		int res = janus_mkdir(recordings_path, 0755);
 		JANUS_LOG(LOG_VERB, "Creating folder: %d\n", res);
 		if(res != 0) {
-			JANUS_LOG(LOG_ERR, "%s", strerror(res));
+			JANUS_LOG(LOG_ERR, "%s", strerror(errno));
 			return -1;	/* No point going on... */
 		}
 	}
@@ -640,16 +639,18 @@ static void *janus_voicemail_handler(void *data) {
 		if(g_hash_table_lookup(sessions, msg->handle) != NULL ) {
 			session = (janus_voicemail_session *)msg->handle->plugin_handle;
 		}
-		janus_mutex_unlock(&sessions_mutex);
 		if(!session) {
+			janus_mutex_unlock(&sessions_mutex);
 			JANUS_LOG(LOG_ERR, "No session associated with this handle...\n");
 			janus_voicemail_message_free(msg);
 			continue;
 		}
 		if(session->destroyed) {
+			janus_mutex_unlock(&sessions_mutex);
 			janus_voicemail_message_free(msg);
 			continue;
 		}
+		janus_mutex_unlock(&sessions_mutex);
 		/* Handle request */
 		error_code = 0;
 		root = msg->message;

@@ -129,7 +129,7 @@ typedef struct janus_pfunix_client {
 	gboolean session_timeout;	/* Whether a Janus session timeout occurred in the core */
 } janus_pfunix_client;
 static GHashTable *clients = NULL, *clients_by_fd = NULL, *clients_by_path = NULL;
-static janus_mutex clients_mutex;
+static janus_mutex clients_mutex = JANUS_MUTEX_INITIALIZER;
 
 
 /* Helper to create a named Unix Socket out of the path to link to */
@@ -289,7 +289,6 @@ int janus_pfunix_init(janus_transport_callbacks *callback, const char *config_pa
 	clients = g_hash_table_new(NULL, NULL);
 	clients_by_fd = g_hash_table_new(NULL, NULL);
 	clients_by_path = g_hash_table_new(g_str_hash, g_str_equal);
-	janus_mutex_init(&clients_mutex);
 
 	/* Start the Unix Sockets service thread */
 	GError *error = NULL;
@@ -532,6 +531,7 @@ void *janus_pfunix_thread(void *data) {
 					janus_pfunix_client *client = g_hash_table_lookup(clients_by_fd, GINT_TO_POINTER(poll_fds[i].fd));
 					if(client == NULL) {
 						/* We're not handling this, ignore */
+						janus_mutex_unlock(&clients_mutex);
 						continue;
 					}
 					JANUS_LOG(LOG_INFO, "Unix Sockets client disconnected (%d)\n", poll_fds[i].fd);
@@ -584,7 +584,7 @@ void *janus_pfunix_thread(void *data) {
 			if(poll_fds[i].revents & POLLIN) {
 				if(poll_fds[i].fd == write_fd[0]) {
 					/* Read and ignore: we use this to unlock the poll if there's data to write */
-					res = read(poll_fds[i].fd, buffer, BUFFER_SIZE);
+					(void)read(poll_fds[i].fd, buffer, BUFFER_SIZE);
 				} else if(poll_fds[i].fd == pfd || poll_fds[i].fd == admin_pfd) {
 					/* Janus/Admin API: accept the new client (SOCK_SEQPACKET) or receive data (SOCK_DGRAM) */
 					struct sockaddr_un address;
