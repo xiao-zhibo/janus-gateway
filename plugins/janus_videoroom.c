@@ -625,6 +625,11 @@ typedef struct janus_videoroom_rtp_relay_packet {
 	uint8_t pbit, dbit, ubit, bbit, ebit;
 } janus_videoroom_rtp_relay_packet;
 
+typedef struct janus_videoroom_data_packet {
+	gchar *data;
+	gint length;
+} janus_videoroom_data_packet;
+
 
 /* Error codes */
 #define JANUS_VIDEOROOM_ERROR_UNKNOWN_ERROR		499
@@ -2825,14 +2830,16 @@ void janus_videoroom_incoming_data(janus_plugin_session *handle, char *buf, int 
 	janus_mutex_unlock(&participant->rtp_forwarders_mutex);
 	/* Get a string out of the data */
 	char *text = g_malloc0(len+1);
-	memcpy(text, buf, len);
 	*(text+len) = '\0';
 	JANUS_LOG(LOG_VERB, "Got a DataChannel message (%zu bytes) to forward: %s\n", strlen(text), text);
 	/* Save the message if we're recording */
 	janus_recorder_save_frame(participant->drc, text, strlen(text));
 	/* Relay to all listeners */
+	janus_videoroom_data_packet packet;
+	packet.data = buf;
+	packet.length = len;
 	janus_mutex_lock_nodebug(&participant->listeners_mutex);
-	g_slist_foreach(participant->listeners, janus_videoroom_relay_data_packet, text);
+	g_slist_foreach(participant->listeners, janus_videoroom_relay_data_packet, &packet);
 	janus_mutex_unlock_nodebug(&participant->listeners_mutex);
 	g_free(text);
 }
@@ -4585,7 +4592,7 @@ static void janus_videoroom_relay_rtp_packet(gpointer data, gpointer user_data) 
 }
 
 static void janus_videoroom_relay_data_packet(gpointer data, gpointer user_data) {
-	char *text = (char *)user_data;
+	janus_videoroom_data_packet *packet = (janus_videoroom_data_packet *)user_data;
 	janus_videoroom_listener *listener = (janus_videoroom_listener *)data;
 	if(!listener || !listener->session || !listener->data || listener->paused) {
 		return;
@@ -4597,9 +4604,9 @@ static void janus_videoroom_relay_data_packet(gpointer data, gpointer user_data)
 	if(!session->started) {
 		return;
 	}
-	if(gateway != NULL && text != NULL) {
-		JANUS_LOG(LOG_VERB, "Forwarding DataChannel message (%zu bytes) to viewer: %s\n", strlen(text), text);
-		gateway->relay_data(session->handle, text, strlen(text));
+	if(gateway != NULL && packet != NULL, packet->length > 0) {
+		JANUS_LOG(LOG_VERB, "Forwarding DataChannel message (%zu bytes) to viewer.\n", packet->length);
+		gateway->relay_data(session->handle, packet->data, packet->length);
 	}
 	return;
 }
