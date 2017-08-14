@@ -2833,7 +2833,9 @@ void janus_videoroom_incoming_data(janus_plugin_session *handle, char *buf, int 
 	*(text+len) = '\0';
 	JANUS_LOG(LOG_VERB, "Got a DataChannel message (%zu bytes) to forward: %s\n", strlen(text), text);
 	/* Save the message if we're recording */
-	janus_recorder_save_frame(participant->drc, text, strlen(text));
+	int ret = janus_recorder_save_frame(participant->drc, text, strlen(text));
+	if (ret != 0)
+		JANUS_LOG(LOG_WARN, "save datachannel return: %d", ret);
 	/* Relay to all listeners */
 	janus_videoroom_data_packet packet;
 	packet.data = buf;
