@@ -2830,6 +2830,7 @@ void janus_videoroom_incoming_data(janus_plugin_session *handle, char *buf, int 
 	janus_mutex_unlock(&participant->rtp_forwarders_mutex);
 	/* Get a string out of the data */
 	char *text = g_malloc0(len+1);
+	memcpy(text, buf, len);
 	*(text+len) = '\0';
 	JANUS_LOG(LOG_VERB, "Got a DataChannel message (%zu bytes) to forward: %s\n", strlen(text), text);
 	/* Save the message if we're recording */
