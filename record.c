@@ -230,6 +230,40 @@ int janus_recorder_save_frame(janus_recorder *recorder, char *buffer, uint lengt
 	return 0;
 }
 
+int janus_recorder_save_whiteboard(janus_recorder *recorder, char *buffer, uint length) {
+	if(!recorder)
+		return -1;
+	janus_mutex_lock_nodebug(&recorder->mutex);
+	if(!buffer || length < 1) {
+		janus_mutex_unlock_nodebug(&recorder->mutex);
+		return -2;
+	}
+	if(!recorder->file) {
+		janus_mutex_unlock_nodebug(&recorder->mutex);
+		return -3;
+	}
+	if(!recorder->writable) {
+		janus_mutex_unlock_nodebug(&recorder->mutex);
+		return -4;
+	}
+	
+	/* Save packet on file */
+	fwrite(&length, sizeof(uint), 1, recorder->file);
+	int temp = 0, tot = length;
+	while(tot > 0) {
+		temp = fwrite(buffer+length-tot, sizeof(char), tot, recorder->file);
+		if(temp <= 0) {
+			JANUS_LOG(LOG_ERR, "Error saving frame...\n");
+			janus_mutex_unlock_nodebug(&recorder->mutex);
+			return -5;
+		}
+		tot -= temp;
+	}
+	/* Done */
+	janus_mutex_unlock_nodebug(&recorder->mutex);
+	return 0;
+}
+
 int janus_recorder_close(janus_recorder *recorder) {
 	if(!recorder || !recorder->writable)
 		return -1;

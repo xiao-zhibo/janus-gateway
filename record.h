@@ -77,6 +77,12 @@ janus_recorder *janus_recorder_create(const char *dir, const char *codec, const 
  * @param[in] length The frame data length
  * @returns 0 in case of success, a negative integer otherwise */
 int janus_recorder_save_frame(janus_recorder *recorder, char *buffer, uint length);
+/*! \brief Save an RTP whiteboard frame in the recorder
+ * @param[in] recorder The janus_recorder instance to save the frame to
+ * @param[in] buffer The frame data to save
+ * @param[in] length The frame data length
+ * @returns 0 in case of success, a negative integer otherwise */
+int janus_recorder_save_whiteboard(janus_recorder *recorder, char *buffer, uint length);
 /*! \brief Close the recorder
  * @param[in] recorder The janus_recorder instance to close
  * @returns 0 in case of success, a negative integer otherwise */

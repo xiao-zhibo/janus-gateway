@@ -507,6 +507,7 @@ typedef struct janus_videoroom {
 	gboolean check_tokens;		/* Whether to check tokens when participants join (see below) */
 	GHashTable *allowed;		/* Map of participants (as tokens) allowed to join */
 	janus_mutex participants_mutex;/* Mutex to protect room properties */
+	janus_recorder *whiteboardRecorder;/* The Janus recorder instance for this room's data, if enabled */
 } janus_videoroom;
 static GHashTable *rooms;
 static janus_mutex rooms_mutex = JANUS_MUTEX_INITIALIZER;
@@ -764,6 +765,14 @@ static void *janus_videoroom_watchdog(void *data) {
 					rl = rl->next;
 					continue;
 				}
+
+				if(room->whiteboardRecorder) {
+					janus_recorder_close(room->whiteboardRecorder);
+					JANUS_LOG(LOG_INFO, "Closed data recording %s\n", room->whiteboardRecorder->filename ? room->whiteboardRecorder->filename : "??");
+					janus_recorder_free(room->whiteboardRecorder);
+				}
+				room->whiteboardRecorder = NULL;
+
 				if(room_now - room->destroyed >= 5*G_USEC_PER_SEC) {
 					GList *rm = rl->next;
 					old_rooms = g_list_delete_link(old_rooms, rl);
@@ -2835,6 +2844,7 @@ void janus_videoroom_incoming_data(janus_plugin_session *handle, char *buf, int 
 	JANUS_LOG(LOG_VERB, "Got a DataChannel message (%zu bytes) to forward: %s\n", strlen(text), text);
 	/* Save the message if we're recording */
 	int ret = janus_recorder_save_frame(participant->drc, text, strlen(text));
+	ret = janus_recorder_save_whiteboard(participant->room->whiteboardRecorder, text, len);
 	if (ret != 0)
 		JANUS_LOG(LOG_WARN, "save datachannel return: %d", ret);
 	/* Relay to all listeners */
@@ -2953,6 +2963,13 @@ static void janus_videoroom_recorder_create(janus_videoroom_participant *partici
 			if(participant->drc == NULL) {
 				JANUS_LOG(LOG_ERR, "Couldn't open an data recording file for this publisher!\n");
 			}
+		}
+	}
+	if (participant->room->whiteboardRecorder == NULL) {
+		g_snprintf(filename, 255, "videoroom-%"SCNu64"-%"SCNi64"-data", participant->room->room_id, now);
+		participant->room->whiteboardRecorder = janus_recorder_create(participant->room->rec_dir, "text", filename);
+		if(participant->room->whiteboardRecorder == NULL) {
+			JANUS_LOG(LOG_ERR, "Couldn't open an data recording file for this room!\n");
 		}
 	}
 }
