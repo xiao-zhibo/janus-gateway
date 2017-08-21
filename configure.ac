@@ -201,6 +201,22 @@ AS_IF([test "x$enable_dtls_settimeout" = "xyes"],
       ])
 AM_CONDITIONAL([ENABLE_DTLS_SETTIMEOUT], [test "x$enable_dtls_settimeout" = "xyes"])
 
+AC_CHECK_LIB([protobuf-c],
+             [protobuf_c_version_number],
+             [
+               AC_CHECK_HEADER([protobuf-c/protobuf-c.h],
+                                [
+                                  JANUS_MANUAL_LIBS+=" -lprotobuf-c"
+                                  AM_CONDITIONAL([LIBPROTOBUF_C_DETECTED], true)
+                                ],
+                                [
+                                  AS_IF([test "x$enable_libsrtp2" = "xyes"],
+                                        [AC_MSG_ERROR([libsrtp2 headers not found. See README.md for installation instructions or use --disable-libsrtp-2 to try and autodetect libsrtp 1.5.x instead])])
+                                ])
+             ],
+             [AC_MSG_ERROR([libsrtp2 not found. See README.md for installation instructions or use --disable-libsrtp-2 to try and autodetect libsrtp 1.5.x instead])]
+             )
+
 AC_CHECK_LIB([crypto],
              [RAND_egd],
              [AM_CONDITIONAL([LIBRESSL_DETECTED], false)],
@@ -616,6 +632,9 @@ AC_OUTPUT
 ##
 echo
 
+AM_COND_IF([LIBPROTOBUF_C_DETECTED],
+  [echo "LIBPROTOBUF_C_DETECTED:     yes"],
+  [echo "LIBPROTOBUF_C_DETECTED":    no])
 AM_COND_IF([ENABLE_LIBSRTP_2],
 	[echo "libsrtp version:           2.0.x"],
 	[echo "libsrtp version:           1.5.x"])

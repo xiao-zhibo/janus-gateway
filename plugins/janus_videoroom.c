@@ -147,6 +147,7 @@ rec_dir = <folder where recordings should be stored, when enabled>
 #include "../utils.h"
 #include <sys/types.h>
 #include <sys/socket.h>
+#include "../protobuf/command.pb-c.h"
 
 
 /* Plugin information */
@@ -2848,6 +2849,12 @@ void janus_videoroom_incoming_data(janus_plugin_session *handle, char *buf, int 
 	if (ret != 0)
 		JANUS_LOG(LOG_WARN, "save datachannel return: %d", ret);
 	/* Relay to all listeners */
+	Pb__Package *package = pb__package__unpack(NULL, len, buf);
+	if (package != NULL)
+	{
+		JANUS_LOG(LOG_ERR, "Parse proto message: %d, %d", package->scene, package->n_cmd);
+		pb__package__free_unpacked(package, NULL);
+	}
 	janus_videoroom_data_packet packet;
 	packet.data = buf;
 	packet.length = len;

@@ -1,0 +1,17 @@
+syntax = "proto3";
+package pb;
+
+message Command {
+    int64 timestamp = 1;
+    int32 cmd = 2;
+    double x = 3;
+    double y = 4;
+    int32 w = 5;
+    int64 color = 6;
+}
+
+message Package {
+    int32 scene = 1;
+    int64 user = 2;
+    repeated Command cmd=3;
+}

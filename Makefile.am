@@ -29,7 +29,7 @@ bin_PROGRAMS = janus
 
 headerdir = $(includedir)/janus
 header_HEADERS = apierror.h config.h log.h debug.h mutex.h record.h \
-	rtcp.h rtp.h sdp-utils.h ip-utils.h utils.h
+	rtcp.h rtp.h sdp-utils.h ip-utils.h utils.h protobuf/command.pb-c.h
 
 pluginsheaderdir = $(includedir)/janus/plugins
 pluginsheader_HEADERS = plugins/plugin.h
@@ -88,6 +88,8 @@ CLEANFILES += conf/janus.cfg.sample
 ##
 
 janus_SOURCES = \
+	protobuf/command.pb-c.c \
+	protobuf/command.pb-c.h \
 	apierror.c \
 	apierror.h \
 	auth.c \
@@ -365,7 +367,7 @@ if ENABLE_PLUGIN_VIDEOROOM
 plugin_LTLIBRARIES += plugins/libjanus_videoroom.la
 plugins_libjanus_videoroom_la_SOURCES = plugins/janus_videoroom.c
 plugins_libjanus_videoroom_la_CFLAGS = $(plugins_cflags)
-plugins_libjanus_videoroom_la_LDFLAGS = $(plugins_ldflags)
+plugins_libjanus_videoroom_la_LDFLAGS = $(plugins_ldflags) -lprotobuf
 plugins_libjanus_videoroom_la_LIBADD = $(plugins_libadd)
 conf_DATA += conf/janus.plugin.videoroom.cfg.sample
 EXTRA_DIST += conf/janus.plugin.videoroom.cfg.sample
