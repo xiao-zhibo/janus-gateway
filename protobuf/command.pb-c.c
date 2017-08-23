@@ -103,7 +103,7 @@ static const ProtobufCFieldDescriptor pb__command__field_descriptors[6] =
     "timestamp",
     1,
     PROTOBUF_C_LABEL_NONE,
-    PROTOBUF_C_TYPE_INT64,
+    PROTOBUF_C_TYPE_INT32,
     0,   /* quantifier_offset */
     offsetof(Pb__Command, timestamp),
     NULL,
@@ -200,11 +200,35 @@ const ProtobufCMessageDescriptor pb__command__descriptor =
   (ProtobufCMessageInit) pb__command__init,
   NULL,NULL,NULL    /* reserved[123] */
 };
-static const ProtobufCFieldDescriptor pb__package__field_descriptors[3] =
+static const ProtobufCFieldDescriptor pb__package__field_descriptors[5] =
 {
   {
-    "scene",
+    "type",
     1,
+    PROTOBUF_C_LABEL_NONE,
+    PROTOBUF_C_TYPE_INT32,
+    0,   /* quantifier_offset */
+    offsetof(Pb__Package, type),
+    NULL,
+    NULL,
+    0,             /* flags */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
+  {
+    "timestamp",
+    2,
+    PROTOBUF_C_LABEL_NONE,
+    PROTOBUF_C_TYPE_INT64,
+    0,   /* quantifier_offset */
+    offsetof(Pb__Package, timestamp),
+    NULL,
+    NULL,
+    0,             /* flags */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
+  {
+    "scene",
+    3,
     PROTOBUF_C_LABEL_NONE,
     PROTOBUF_C_TYPE_INT32,
     0,   /* quantifier_offset */
@@ -216,7 +240,7 @@ static const ProtobufCFieldDescriptor pb__package__field_descriptors[3] =
   },
   {
     "user",
-    2,
+    4,
     PROTOBUF_C_LABEL_NONE,
     PROTOBUF_C_TYPE_INT64,
     0,   /* quantifier_offset */
@@ -228,7 +252,7 @@ static const ProtobufCFieldDescriptor pb__package__field_descriptors[3] =
   },
   {
     "cmd",
-    3,
+    5,
     PROTOBUF_C_LABEL_REPEATED,
     PROTOBUF_C_TYPE_MESSAGE,
     offsetof(Pb__Package, n_cmd),
@@ -240,14 +264,16 @@ static const ProtobufCFieldDescriptor pb__package__field_descriptors[3] =
   },
 };
 static const unsigned pb__package__field_indices_by_name[] = {
-  2,   /* field[2] = cmd */
-  0,   /* field[0] = scene */
-  1,   /* field[1] = user */
+  4,   /* field[4] = cmd */
+  2,   /* field[2] = scene */
+  1,   /* field[1] = timestamp */
+  0,   /* field[0] = type */
+  3,   /* field[3] = user */
 };
 static const ProtobufCIntRange pb__package__number_ranges[1 + 1] =
 {
   { 1, 0 },
-  { 0, 3 }
+  { 0, 5 }
 };
 const ProtobufCMessageDescriptor pb__package__descriptor =
 {
@@ -257,7 +283,7 @@ const ProtobufCMessageDescriptor pb__package__descriptor =
   "Pb__Package",
   "pb",
   sizeof(Pb__Package),
-  3,
+  5,
   pb__package__field_descriptors,
   pb__package__field_indices_by_name,
   1,  pb__package__number_ranges,

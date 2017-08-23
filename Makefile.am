@@ -29,7 +29,7 @@ bin_PROGRAMS = janus
 
 headerdir = $(includedir)/janus
 header_HEADERS = apierror.h config.h log.h debug.h mutex.h record.h \
-	rtcp.h rtp.h sdp-utils.h ip-utils.h utils.h protobuf/command.pb-c.h
+	rtcp.h rtp.h sdp-utils.h ip-utils.h utils.h protobuf/command.pb-c.h whiteboard.h
 
 pluginsheaderdir = $(includedir)/janus/plugins
 pluginsheader_HEADERS = plugins/plugin.h
@@ -90,6 +90,8 @@ CLEANFILES += conf/janus.cfg.sample
 janus_SOURCES = \
 	protobuf/command.pb-c.c \
 	protobuf/command.pb-c.h \
+	whiteboard.c \
+	whiteboard.h \
 	apierror.c \
 	apierror.h \
 	auth.c \

@@ -2,7 +2,7 @@ syntax = "proto3";
 package pb;
 
 message Command {
-    int64 timestamp = 1;
+    int32 timestamp = 1;
     int32 cmd = 2;
     double x = 3;
     double y = 4;
@@ -11,7 +11,9 @@ message Command {
 }
 
 message Package {
-    int32 scene = 1;
-    int64 user = 2;
-    repeated Command cmd=3;
+    int32 type = 1;
+    int64 timestamp = 2;
+    int32 scene = 3;
+    int64 user = 4;
+    repeated Command cmd = 5;
 }

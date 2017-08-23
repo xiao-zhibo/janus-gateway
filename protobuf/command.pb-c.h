@@ -27,7 +27,7 @@ typedef struct _Pb__Package Pb__Package;
 struct  _Pb__Command
 {
   ProtobufCMessage base;
-  int64_t timestamp;
+  int32_t timestamp;
   int32_t cmd;
   double x;
   double y;
@@ -42,6 +42,8 @@ struct  _Pb__Command
 struct  _Pb__Package
 {
   ProtobufCMessage base;
+  int32_t type;
+  int64_t timestamp;
   int32_t scene;
   int64_t user;
   size_t n_cmd;
@@ -49,7 +51,7 @@ struct  _Pb__Package
 };
 #define PB__PACKAGE__INIT \
  { PROTOBUF_C_MESSAGE_INIT (&pb__package__descriptor) \
-    , 0, 0, 0,NULL }
+    , 0, 0, 0, 0, 0,NULL }
 
 
 /* Pb__Command methods */

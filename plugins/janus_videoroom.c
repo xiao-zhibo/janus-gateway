@@ -148,6 +148,7 @@ rec_dir = <folder where recordings should be stored, when enabled>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include "../protobuf/command.pb-c.h"
+#include "../whiteboard.h"
 
 
 /* Plugin information */
@@ -508,7 +509,7 @@ typedef struct janus_videoroom {
 	gboolean check_tokens;		/* Whether to check tokens when participants join (see below) */
 	GHashTable *allowed;		/* Map of participants (as tokens) allowed to join */
 	janus_mutex participants_mutex;/* Mutex to protect room properties */
-	janus_recorder *whiteboardRecorder;/* The Janus recorder instance for this room's data, if enabled */
+	janus_whiteboard *whiteboard;/* The Janus recorder instance for this room's data, if enabled */
 } janus_videoroom;
 static GHashTable *rooms;
 static janus_mutex rooms_mutex = JANUS_MUTEX_INITIALIZER;
@@ -588,6 +589,8 @@ static void janus_videoroom_participant_free(janus_videoroom_participant *p);
 static void janus_videoroom_rtp_forwarder_free_helper(gpointer data);
 static guint32 janus_videoroom_rtp_forwarder_add_helper(janus_videoroom_participant *p,
 	const gchar* host, int port, int pt, uint32_t ssrc, int substream, gboolean is_video, gboolean is_data);
+
+static void janus_videoroom_relay_whiteboard_packet(janus_videoroom_participant *participant, char *buf, int len);
 
 typedef struct janus_videoroom_listener {
 	janus_videoroom_session *session;
@@ -767,12 +770,12 @@ static void *janus_videoroom_watchdog(void *data) {
 					continue;
 				}
 
-				if(room->whiteboardRecorder) {
-					janus_recorder_close(room->whiteboardRecorder);
-					JANUS_LOG(LOG_INFO, "Closed data recording %s\n", room->whiteboardRecorder->filename ? room->whiteboardRecorder->filename : "??");
-					janus_recorder_free(room->whiteboardRecorder);
+				if(room->whiteboard) {
+					janus_whiteboard_close(room->whiteboard);
+					JANUS_LOG(LOG_INFO, "Closed data recording %s\n", room->whiteboard->filename ? room->whiteboard->filename : "??");
+					janus_whiteboard_free(room->whiteboard);
 				}
-				room->whiteboardRecorder = NULL;
+				room->whiteboard = NULL;
 
 				if(room_now - room->destroyed >= 5*G_USEC_PER_SEC) {
 					GList *rm = rl->next;
@@ -2845,22 +2848,19 @@ void janus_videoroom_incoming_data(janus_plugin_session *handle, char *buf, int 
 	JANUS_LOG(LOG_VERB, "Got a DataChannel message (%zu bytes) to forward: %s\n", strlen(text), text);
 	/* Save the message if we're recording */
 	int ret = janus_recorder_save_frame(participant->drc, text, strlen(text));
-	ret = janus_recorder_save_whiteboard(participant->room->whiteboardRecorder, text, len);
-	if (ret != 0)
-		JANUS_LOG(LOG_WARN, "save datachannel return: %d", ret);
-	/* Relay to all listeners */
-	Pb__Package *package = pb__package__unpack(NULL, len, buf);
-	if (package != NULL)
-	{
-		JANUS_LOG(LOG_ERR, "Parse proto message: %d, %d", package->scene, package->n_cmd);
-		pb__package__free_unpacked(package, NULL);
+	char *out_buf;
+	ret = janus_whiteboard_save_package(participant->room->whiteboard, buf, len, &out_buf);
+	if (ret > 0) {
+		janus_videoroom_relay_whiteboard_packet(participant, out_buf, ret);
+	} else {
+		/* Relay to all listeners */
+		janus_videoroom_data_packet packet;
+		packet.data = buf;
+		packet.length = len;
+		janus_mutex_lock_nodebug(&participant->listeners_mutex);
+		g_slist_foreach(participant->listeners, janus_videoroom_relay_data_packet, &packet);
+		janus_mutex_unlock_nodebug(&participant->listeners_mutex);
 	}
-	janus_videoroom_data_packet packet;
-	packet.data = buf;
-	packet.length = len;
-	janus_mutex_lock_nodebug(&participant->listeners_mutex);
-	g_slist_foreach(participant->listeners, janus_videoroom_relay_data_packet, &packet);
-	janus_mutex_unlock_nodebug(&participant->listeners_mutex);
 	g_free(text);
 }
 
@@ -2972,10 +2972,10 @@ static void janus_videoroom_recorder_create(janus_videoroom_participant *partici
 			}
 		}
 	}
-	if (participant->room->whiteboardRecorder == NULL) {
+	if (participant->room->whiteboard == NULL) {
 		g_snprintf(filename, 255, "videoroom-%"SCNu64"-%"SCNi64"-data", participant->room->room_id, now);
-		participant->room->whiteboardRecorder = janus_recorder_create(participant->room->rec_dir, "text", filename);
-		if(participant->room->whiteboardRecorder == NULL) {
+		participant->room->whiteboard = janus_whiteboard_create(participant->room->rec_dir, filename, 0);
+		if(participant->room->whiteboard == NULL) {
 			JANUS_LOG(LOG_ERR, "Couldn't open an data recording file for this room!\n");
 		}
 	}
@@ -3307,6 +3307,7 @@ static void *janus_videoroom_handler(void *data) {
 					if(g_hash_table_lookup(videoroom->private_ids, GUINT_TO_POINTER(publisher->pvt_id)) != NULL) {
 						/* Private ID already taken, try another one */
 						publisher->pvt_id = 0;
+						continue;
 					}
 					g_hash_table_insert(videoroom->private_ids, GUINT_TO_POINTER(publisher->pvt_id), publisher);
 				}
@@ -4315,6 +4316,11 @@ static void *janus_videoroom_handler(void *data) {
 				} else {
 					/* Store the participant's SDP for interested listeners */
 					participant->sdp = offer_sdp;
+					if (participant->room && participant->room->whiteboard) {
+						int len;
+						uint8_t *buf = janus_whiteboard_current_scene_data(participant->room->whiteboard, &len);
+						janus_videoroom_relay_whiteboard_packet(participant, buf, len);
+					}
 					/* We'll wait for the setup_media event before actually telling listeners */
 				}
 				json_decref(event);
@@ -4702,4 +4708,22 @@ static void janus_videoroom_participant_free(janus_videoroom_participant *p) {
 	janus_mutex_destroy(&p->listeners_mutex);
 	janus_mutex_destroy(&p->rtp_forwarders_mutex);
 	g_free(p);
+}
+
+static void janus_videoroom_relay_whiteboard_packet(janus_videoroom_participant *participant, char *buf, int len) {
+	if(!participant || !participant->session) {
+		return;
+	}
+	janus_videoroom_session *session = participant->session;
+	if(!session || !session->handle) {
+		return;
+	}
+	if(!session->started) {
+		return;
+	}
+	if(gateway != NULL && buf != NULL, len > 0) {
+		JANUS_LOG(LOG_VERB, "Forwarding DataChannel message (%zu bytes) to viewer.\n", len);
+		gateway->relay_data(session->handle, buf, len);
+	}
+	return;
 }
