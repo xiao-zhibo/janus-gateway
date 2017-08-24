@@ -4316,11 +4316,6 @@ static void *janus_videoroom_handler(void *data) {
 				} else {
 					/* Store the participant's SDP for interested listeners */
 					participant->sdp = offer_sdp;
-					if (participant->room && participant->room->whiteboard) {
-						int len;
-						uint8_t *buf = janus_whiteboard_current_scene_data(participant->room->whiteboard, &len);
-						janus_videoroom_relay_whiteboard_packet(participant, buf, len);
-					}
 					/* We'll wait for the setup_media event before actually telling listeners */
 				}
 				json_decref(event);
