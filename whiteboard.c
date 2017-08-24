@@ -175,9 +175,9 @@ int janus_whiteboard_save_package(janus_whiteboard *whiteboard, char *buffer, ui
 	} else if (package->type == KLPackageType_SceneData) {
 		int size = 0;
 		uint8_t *buf;
-		if (package->scene == whiteboard->scene) {
+		if ( package->scene == whiteboard->scene || package->scene == -1 ) {
 			*out = janus_whiteboard_packed_data(whiteboard->scene_packages, whiteboard->scene_package_num, &size);
-		} else {
+		} else if (package->scene >= 0) {
 			Pb__Package **packages = g_malloc0(sizeof(Pb__Package*) * 10000);
 			int num = janus_whiteboard_scene_data(whiteboard, whiteboard->scene, packages);
 			*out = janus_whiteboard_packed_data(packages, num, &size);
