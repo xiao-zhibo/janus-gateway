@@ -23,7 +23,8 @@ typedef enum {
 	KLPackageType_DrawCommand = 0,
     KLPackageType_SwitchScene,
     KLPackageType_CleanDraw,
-    KLPackageType_SceneData
+    KLPackageType_SceneData,
+    KLPackageType_KeyFrame
 } KLDataPackageType;
 
 
@@ -39,6 +40,9 @@ typedef struct janus_whiteboard {
 	int scene;
 	Pb__Package **scene_packages;
 	int scene_package_num;
+	int package_data_offset;
+	
+	Pb__Header *header;
 	/*! \brief Mutex to lock/unlock this whiteboard instance */ 
 	janus_mutex mutex;
 } janus_whiteboard;

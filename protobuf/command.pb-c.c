@@ -52,6 +52,96 @@ void   pb__command__free_unpacked
   assert(message->base.descriptor == &pb__command__descriptor);
   protobuf_c_message_free_unpacked ((ProtobufCMessage*)message, allocator);
 }
+void   pb__point__init
+                     (Pb__Point         *message)
+{
+  static const Pb__Point init_value = PB__POINT__INIT;
+  *message = init_value;
+}
+size_t pb__point__get_packed_size
+                     (const Pb__Point *message)
+{
+  assert(message->base.descriptor == &pb__point__descriptor);
+  return protobuf_c_message_get_packed_size ((const ProtobufCMessage*)(message));
+}
+size_t pb__point__pack
+                     (const Pb__Point *message,
+                      uint8_t       *out)
+{
+  assert(message->base.descriptor == &pb__point__descriptor);
+  return protobuf_c_message_pack ((const ProtobufCMessage*)message, out);
+}
+size_t pb__point__pack_to_buffer
+                     (const Pb__Point *message,
+                      ProtobufCBuffer *buffer)
+{
+  assert(message->base.descriptor == &pb__point__descriptor);
+  return protobuf_c_message_pack_to_buffer ((const ProtobufCMessage*)message, buffer);
+}
+Pb__Point *
+       pb__point__unpack
+                     (ProtobufCAllocator  *allocator,
+                      size_t               len,
+                      const uint8_t       *data)
+{
+  return (Pb__Point *)
+     protobuf_c_message_unpack (&pb__point__descriptor,
+                                allocator, len, data);
+}
+void   pb__point__free_unpacked
+                     (Pb__Point *message,
+                      ProtobufCAllocator *allocator)
+{
+  if(!message)
+    return;
+  assert(message->base.descriptor == &pb__point__descriptor);
+  protobuf_c_message_free_unpacked ((ProtobufCMessage*)message, allocator);
+}
+void   pb__line__init
+                     (Pb__Line         *message)
+{
+  static const Pb__Line init_value = PB__LINE__INIT;
+  *message = init_value;
+}
+size_t pb__line__get_packed_size
+                     (const Pb__Line *message)
+{
+  assert(message->base.descriptor == &pb__line__descriptor);
+  return protobuf_c_message_get_packed_size ((const ProtobufCMessage*)(message));
+}
+size_t pb__line__pack
+                     (const Pb__Line *message,
+                      uint8_t       *out)
+{
+  assert(message->base.descriptor == &pb__line__descriptor);
+  return protobuf_c_message_pack ((const ProtobufCMessage*)message, out);
+}
+size_t pb__line__pack_to_buffer
+                     (const Pb__Line *message,
+                      ProtobufCBuffer *buffer)
+{
+  assert(message->base.descriptor == &pb__line__descriptor);
+  return protobuf_c_message_pack_to_buffer ((const ProtobufCMessage*)message, buffer);
+}
+Pb__Line *
+       pb__line__unpack
+                     (ProtobufCAllocator  *allocator,
+                      size_t               len,
+                      const uint8_t       *data)
+{
+  return (Pb__Line *)
+     protobuf_c_message_unpack (&pb__line__descriptor,
+                                allocator, len, data);
+}
+void   pb__line__free_unpacked
+                     (Pb__Line *message,
+                      ProtobufCAllocator *allocator)
+{
+  if(!message)
+    return;
+  assert(message->base.descriptor == &pb__line__descriptor);
+  protobuf_c_message_free_unpacked ((ProtobufCMessage*)message, allocator);
+}
 void   pb__package__init
                      (Pb__Package         *message)
 {
@@ -97,7 +187,97 @@ void   pb__package__free_unpacked
   assert(message->base.descriptor == &pb__package__descriptor);
   protobuf_c_message_free_unpacked ((ProtobufCMessage*)message, allocator);
 }
-static const ProtobufCFieldDescriptor pb__command__field_descriptors[6] =
+void   pb__key_frame__init
+                     (Pb__KeyFrame         *message)
+{
+  static const Pb__KeyFrame init_value = PB__KEY_FRAME__INIT;
+  *message = init_value;
+}
+size_t pb__key_frame__get_packed_size
+                     (const Pb__KeyFrame *message)
+{
+  assert(message->base.descriptor == &pb__key_frame__descriptor);
+  return protobuf_c_message_get_packed_size ((const ProtobufCMessage*)(message));
+}
+size_t pb__key_frame__pack
+                     (const Pb__KeyFrame *message,
+                      uint8_t       *out)
+{
+  assert(message->base.descriptor == &pb__key_frame__descriptor);
+  return protobuf_c_message_pack ((const ProtobufCMessage*)message, out);
+}
+size_t pb__key_frame__pack_to_buffer
+                     (const Pb__KeyFrame *message,
+                      ProtobufCBuffer *buffer)
+{
+  assert(message->base.descriptor == &pb__key_frame__descriptor);
+  return protobuf_c_message_pack_to_buffer ((const ProtobufCMessage*)message, buffer);
+}
+Pb__KeyFrame *
+       pb__key_frame__unpack
+                     (ProtobufCAllocator  *allocator,
+                      size_t               len,
+                      const uint8_t       *data)
+{
+  return (Pb__KeyFrame *)
+     protobuf_c_message_unpack (&pb__key_frame__descriptor,
+                                allocator, len, data);
+}
+void   pb__key_frame__free_unpacked
+                     (Pb__KeyFrame *message,
+                      ProtobufCAllocator *allocator)
+{
+  if(!message)
+    return;
+  assert(message->base.descriptor == &pb__key_frame__descriptor);
+  protobuf_c_message_free_unpacked ((ProtobufCMessage*)message, allocator);
+}
+void   pb__header__init
+                     (Pb__Header         *message)
+{
+  static const Pb__Header init_value = PB__HEADER__INIT;
+  *message = init_value;
+}
+size_t pb__header__get_packed_size
+                     (const Pb__Header *message)
+{
+  assert(message->base.descriptor == &pb__header__descriptor);
+  return protobuf_c_message_get_packed_size ((const ProtobufCMessage*)(message));
+}
+size_t pb__header__pack
+                     (const Pb__Header *message,
+                      uint8_t       *out)
+{
+  assert(message->base.descriptor == &pb__header__descriptor);
+  return protobuf_c_message_pack ((const ProtobufCMessage*)message, out);
+}
+size_t pb__header__pack_to_buffer
+                     (const Pb__Header *message,
+                      ProtobufCBuffer *buffer)
+{
+  assert(message->base.descriptor == &pb__header__descriptor);
+  return protobuf_c_message_pack_to_buffer ((const ProtobufCMessage*)message, buffer);
+}
+Pb__Header *
+       pb__header__unpack
+                     (ProtobufCAllocator  *allocator,
+                      size_t               len,
+                      const uint8_t       *data)
+{
+  return (Pb__Header *)
+     protobuf_c_message_unpack (&pb__header__descriptor,
+                                allocator, len, data);
+}
+void   pb__header__free_unpacked
+                     (Pb__Header *message,
+                      ProtobufCAllocator *allocator)
+{
+  if(!message)
+    return;
+  assert(message->base.descriptor == &pb__header__descriptor);
+  protobuf_c_message_free_unpacked ((ProtobufCMessage*)message, allocator);
+}
+static const ProtobufCFieldDescriptor pb__command__field_descriptors[7] =
 {
   {
     "timestamp",
@@ -163,9 +343,21 @@ static const ProtobufCFieldDescriptor pb__command__field_descriptors[6] =
     "color",
     6,
     PROTOBUF_C_LABEL_NONE,
-    PROTOBUF_C_TYPE_INT64,
+    PROTOBUF_C_TYPE_INT32,
     0,   /* quantifier_offset */
     offsetof(Pb__Command, color),
+    NULL,
+    NULL,
+    0,             /* flags */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
+  {
+    "user",
+    7,
+    PROTOBUF_C_LABEL_NONE,
+    PROTOBUF_C_TYPE_INT64,
+    0,   /* quantifier_offset */
+    offsetof(Pb__Command, user),
     NULL,
     NULL,
     0,             /* flags */
@@ -176,6 +368,7 @@ static const unsigned pb__command__field_indices_by_name[] = {
   1,   /* field[1] = cmd */
   5,   /* field[5] = color */
   0,   /* field[0] = timestamp */
+  6,   /* field[6] = user */
   4,   /* field[4] = w */
   2,   /* field[2] = x */
   3,   /* field[3] = y */
@@ -183,7 +376,7 @@ static const unsigned pb__command__field_indices_by_name[] = {
 static const ProtobufCIntRange pb__command__number_ranges[1 + 1] =
 {
   { 1, 0 },
-  { 0, 6 }
+  { 0, 7 }
 };
 const ProtobufCMessageDescriptor pb__command__descriptor =
 {
@@ -193,11 +386,139 @@ const ProtobufCMessageDescriptor pb__command__descriptor =
   "Pb__Command",
   "pb",
   sizeof(Pb__Command),
-  6,
+  7,
   pb__command__field_descriptors,
   pb__command__field_indices_by_name,
   1,  pb__command__number_ranges,
   (ProtobufCMessageInit) pb__command__init,
+  NULL,NULL,NULL    /* reserved[123] */
+};
+static const ProtobufCFieldDescriptor pb__point__field_descriptors[2] =
+{
+  {
+    "x",
+    1,
+    PROTOBUF_C_LABEL_NONE,
+    PROTOBUF_C_TYPE_DOUBLE,
+    0,   /* quantifier_offset */
+    offsetof(Pb__Point, x),
+    NULL,
+    NULL,
+    0,             /* flags */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
+  {
+    "y",
+    2,
+    PROTOBUF_C_LABEL_NONE,
+    PROTOBUF_C_TYPE_DOUBLE,
+    0,   /* quantifier_offset */
+    offsetof(Pb__Point, y),
+    NULL,
+    NULL,
+    0,             /* flags */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
+};
+static const unsigned pb__point__field_indices_by_name[] = {
+  0,   /* field[0] = x */
+  1,   /* field[1] = y */
+};
+static const ProtobufCIntRange pb__point__number_ranges[1 + 1] =
+{
+  { 1, 0 },
+  { 0, 2 }
+};
+const ProtobufCMessageDescriptor pb__point__descriptor =
+{
+  PROTOBUF_C__MESSAGE_DESCRIPTOR_MAGIC,
+  "pb.Point",
+  "Point",
+  "Pb__Point",
+  "pb",
+  sizeof(Pb__Point),
+  2,
+  pb__point__field_descriptors,
+  pb__point__field_indices_by_name,
+  1,  pb__point__number_ranges,
+  (ProtobufCMessageInit) pb__point__init,
+  NULL,NULL,NULL    /* reserved[123] */
+};
+static const ProtobufCFieldDescriptor pb__line__field_descriptors[4] =
+{
+  {
+    "user",
+    1,
+    PROTOBUF_C_LABEL_NONE,
+    PROTOBUF_C_TYPE_INT32,
+    0,   /* quantifier_offset */
+    offsetof(Pb__Line, user),
+    NULL,
+    NULL,
+    0,             /* flags */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
+  {
+    "color",
+    2,
+    PROTOBUF_C_LABEL_NONE,
+    PROTOBUF_C_TYPE_INT32,
+    0,   /* quantifier_offset */
+    offsetof(Pb__Line, color),
+    NULL,
+    NULL,
+    0,             /* flags */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
+  {
+    "width",
+    3,
+    PROTOBUF_C_LABEL_NONE,
+    PROTOBUF_C_TYPE_INT32,
+    0,   /* quantifier_offset */
+    offsetof(Pb__Line, width),
+    NULL,
+    NULL,
+    0,             /* flags */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
+  {
+    "points",
+    4,
+    PROTOBUF_C_LABEL_REPEATED,
+    PROTOBUF_C_TYPE_MESSAGE,
+    offsetof(Pb__Line, n_points),
+    offsetof(Pb__Line, points),
+    &pb__point__descriptor,
+    NULL,
+    0,             /* flags */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
+};
+static const unsigned pb__line__field_indices_by_name[] = {
+  1,   /* field[1] = color */
+  3,   /* field[3] = points */
+  0,   /* field[0] = user */
+  2,   /* field[2] = width */
+};
+static const ProtobufCIntRange pb__line__number_ranges[1 + 1] =
+{
+  { 1, 0 },
+  { 0, 4 }
+};
+const ProtobufCMessageDescriptor pb__line__descriptor =
+{
+  PROTOBUF_C__MESSAGE_DESCRIPTOR_MAGIC,
+  "pb.Line",
+  "Line",
+  "Pb__Line",
+  "pb",
+  sizeof(Pb__Line),
+  4,
+  pb__line__field_descriptors,
+  pb__line__field_indices_by_name,
+  1,  pb__line__number_ranges,
+  (ProtobufCMessageInit) pb__line__init,
   NULL,NULL,NULL    /* reserved[123] */
 };
 static const ProtobufCFieldDescriptor pb__package__field_descriptors[5] =
@@ -239,20 +560,8 @@ static const ProtobufCFieldDescriptor pb__package__field_descriptors[5] =
     0,NULL,NULL    /* reserved1,reserved2, etc */
   },
   {
-    "user",
-    4,
-    PROTOBUF_C_LABEL_NONE,
-    PROTOBUF_C_TYPE_INT64,
-    0,   /* quantifier_offset */
-    offsetof(Pb__Package, user),
-    NULL,
-    NULL,
-    0,             /* flags */
-    0,NULL,NULL    /* reserved1,reserved2, etc */
-  },
-  {
     "cmd",
-    5,
+    4,
     PROTOBUF_C_LABEL_REPEATED,
     PROTOBUF_C_TYPE_MESSAGE,
     offsetof(Pb__Package, n_cmd),
@@ -262,13 +571,25 @@ static const ProtobufCFieldDescriptor pb__package__field_descriptors[5] =
     0,             /* flags */
     0,NULL,NULL    /* reserved1,reserved2, etc */
   },
+  {
+    "lines",
+    5,
+    PROTOBUF_C_LABEL_REPEATED,
+    PROTOBUF_C_TYPE_MESSAGE,
+    offsetof(Pb__Package, n_lines),
+    offsetof(Pb__Package, lines),
+    &pb__line__descriptor,
+    NULL,
+    0,             /* flags */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
 };
 static const unsigned pb__package__field_indices_by_name[] = {
-  4,   /* field[4] = cmd */
+  3,   /* field[3] = cmd */
+  4,   /* field[4] = lines */
   2,   /* field[2] = scene */
   1,   /* field[1] = timestamp */
   0,   /* field[0] = type */
-  3,   /* field[3] = user */
 };
 static const ProtobufCIntRange pb__package__number_ranges[1 + 1] =
 {
@@ -288,5 +609,120 @@ const ProtobufCMessageDescriptor pb__package__descriptor =
   pb__package__field_indices_by_name,
   1,  pb__package__number_ranges,
   (ProtobufCMessageInit) pb__package__init,
+  NULL,NULL,NULL    /* reserved[123] */
+};
+static const ProtobufCFieldDescriptor pb__key_frame__field_descriptors[2] =
+{
+  {
+    "offset",
+    1,
+    PROTOBUF_C_LABEL_NONE,
+    PROTOBUF_C_TYPE_INT32,
+    0,   /* quantifier_offset */
+    offsetof(Pb__KeyFrame, offset),
+    NULL,
+    NULL,
+    0,             /* flags */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
+  {
+    "timestamp",
+    2,
+    PROTOBUF_C_LABEL_NONE,
+    PROTOBUF_C_TYPE_INT64,
+    0,   /* quantifier_offset */
+    offsetof(Pb__KeyFrame, timestamp),
+    NULL,
+    NULL,
+    0,             /* flags */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
+};
+static const unsigned pb__key_frame__field_indices_by_name[] = {
+  0,   /* field[0] = offset */
+  1,   /* field[1] = timestamp */
+};
+static const ProtobufCIntRange pb__key_frame__number_ranges[1 + 1] =
+{
+  { 1, 0 },
+  { 0, 2 }
+};
+const ProtobufCMessageDescriptor pb__key_frame__descriptor =
+{
+  PROTOBUF_C__MESSAGE_DESCRIPTOR_MAGIC,
+  "pb.KeyFrame",
+  "KeyFrame",
+  "Pb__KeyFrame",
+  "pb",
+  sizeof(Pb__KeyFrame),
+  2,
+  pb__key_frame__field_descriptors,
+  pb__key_frame__field_indices_by_name,
+  1,  pb__key_frame__number_ranges,
+  (ProtobufCMessageInit) pb__key_frame__init,
+  NULL,NULL,NULL    /* reserved[123] */
+};
+static const ProtobufCFieldDescriptor pb__header__field_descriptors[3] =
+{
+  {
+    "version",
+    1,
+    PROTOBUF_C_LABEL_NONE,
+    PROTOBUF_C_TYPE_INT32,
+    0,   /* quantifier_offset */
+    offsetof(Pb__Header, version),
+    NULL,
+    NULL,
+    0,             /* flags */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
+  {
+    "duration",
+    2,
+    PROTOBUF_C_LABEL_NONE,
+    PROTOBUF_C_TYPE_INT32,
+    0,   /* quantifier_offset */
+    offsetof(Pb__Header, duration),
+    NULL,
+    NULL,
+    0,             /* flags */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
+  {
+    "keyframes",
+    3,
+    PROTOBUF_C_LABEL_REPEATED,
+    PROTOBUF_C_TYPE_MESSAGE,
+    offsetof(Pb__Header, n_keyframes),
+    offsetof(Pb__Header, keyframes),
+    &pb__key_frame__descriptor,
+    NULL,
+    0,             /* flags */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
+};
+static const unsigned pb__header__field_indices_by_name[] = {
+  1,   /* field[1] = duration */
+  2,   /* field[2] = keyframes */
+  0,   /* field[0] = version */
+};
+static const ProtobufCIntRange pb__header__number_ranges[1 + 1] =
+{
+  { 1, 0 },
+  { 0, 3 }
+};
+const ProtobufCMessageDescriptor pb__header__descriptor =
+{
+  PROTOBUF_C__MESSAGE_DESCRIPTOR_MAGIC,
+  "pb.Header",
+  "Header",
+  "Pb__Header",
+  "pb",
+  sizeof(Pb__Header),
+  3,
+  pb__header__field_descriptors,
+  pb__header__field_indices_by_name,
+  1,  pb__header__number_ranges,
+  (ProtobufCMessageInit) pb__header__init,
   NULL,NULL,NULL    /* reserved[123] */
 };

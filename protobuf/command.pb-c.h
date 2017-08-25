@@ -16,7 +16,11 @@ PROTOBUF_C__BEGIN_DECLS
 
 
 typedef struct _Pb__Command Pb__Command;
+typedef struct _Pb__Point Pb__Point;
+typedef struct _Pb__Line Pb__Line;
 typedef struct _Pb__Package Pb__Package;
+typedef struct _Pb__KeyFrame Pb__KeyFrame;
+typedef struct _Pb__Header Pb__Header;
 
 
 /* --- enums --- */
@@ -32,11 +36,37 @@ struct  _Pb__Command
   double x;
   double y;
   int32_t w;
-  int64_t color;
+  int32_t color;
+  int64_t user;
 };
 #define PB__COMMAND__INIT \
  { PROTOBUF_C_MESSAGE_INIT (&pb__command__descriptor) \
-    , 0, 0, 0, 0, 0, 0 }
+    , 0, 0, 0, 0, 0, 0, 0 }
+
+
+struct  _Pb__Point
+{
+  ProtobufCMessage base;
+  double x;
+  double y;
+};
+#define PB__POINT__INIT \
+ { PROTOBUF_C_MESSAGE_INIT (&pb__point__descriptor) \
+    , 0, 0 }
+
+
+struct  _Pb__Line
+{
+  ProtobufCMessage base;
+  int32_t user;
+  int32_t color;
+  int32_t width;
+  size_t n_points;
+  Pb__Point **points;
+};
+#define PB__LINE__INIT \
+ { PROTOBUF_C_MESSAGE_INIT (&pb__line__descriptor) \
+    , 0, 0, 0, 0,NULL }
 
 
 struct  _Pb__Package
@@ -45,13 +75,38 @@ struct  _Pb__Package
   int32_t type;
   int64_t timestamp;
   int32_t scene;
-  int64_t user;
   size_t n_cmd;
   Pb__Command **cmd;
+  size_t n_lines;
+  Pb__Line **lines;
 };
 #define PB__PACKAGE__INIT \
  { PROTOBUF_C_MESSAGE_INIT (&pb__package__descriptor) \
-    , 0, 0, 0, 0, 0,NULL }
+    , 0, 0, 0, 0,NULL, 0,NULL }
+
+
+struct  _Pb__KeyFrame
+{
+  ProtobufCMessage base;
+  int32_t offset;
+  int64_t timestamp;
+};
+#define PB__KEY_FRAME__INIT \
+ { PROTOBUF_C_MESSAGE_INIT (&pb__key_frame__descriptor) \
+    , 0, 0 }
+
+
+struct  _Pb__Header
+{
+  ProtobufCMessage base;
+  int32_t version;
+  int32_t duration;
+  size_t n_keyframes;
+  Pb__KeyFrame **keyframes;
+};
+#define PB__HEADER__INIT \
+ { PROTOBUF_C_MESSAGE_INIT (&pb__header__descriptor) \
+    , 0, 0, 0,NULL }
 
 
 /* Pb__Command methods */
@@ -73,6 +128,44 @@ Pb__Command *
 void   pb__command__free_unpacked
                      (Pb__Command *message,
                       ProtobufCAllocator *allocator);
+/* Pb__Point methods */
+void   pb__point__init
+                     (Pb__Point         *message);
+size_t pb__point__get_packed_size
+                     (const Pb__Point   *message);
+size_t pb__point__pack
+                     (const Pb__Point   *message,
+                      uint8_t             *out);
+size_t pb__point__pack_to_buffer
+                     (const Pb__Point   *message,
+                      ProtobufCBuffer     *buffer);
+Pb__Point *
+       pb__point__unpack
+                     (ProtobufCAllocator  *allocator,
+                      size_t               len,
+                      const uint8_t       *data);
+void   pb__point__free_unpacked
+                     (Pb__Point *message,
+                      ProtobufCAllocator *allocator);
+/* Pb__Line methods */
+void   pb__line__init
+                     (Pb__Line         *message);
+size_t pb__line__get_packed_size
+                     (const Pb__Line   *message);
+size_t pb__line__pack
+                     (const Pb__Line   *message,
+                      uint8_t             *out);
+size_t pb__line__pack_to_buffer
+                     (const Pb__Line   *message,
+                      ProtobufCBuffer     *buffer);
+Pb__Line *
+       pb__line__unpack
+                     (ProtobufCAllocator  *allocator,
+                      size_t               len,
+                      const uint8_t       *data);
+void   pb__line__free_unpacked
+                     (Pb__Line *message,
+                      ProtobufCAllocator *allocator);
 /* Pb__Package methods */
 void   pb__package__init
                      (Pb__Package         *message);
@@ -92,13 +185,63 @@ Pb__Package *
 void   pb__package__free_unpacked
                      (Pb__Package *message,
                       ProtobufCAllocator *allocator);
+/* Pb__KeyFrame methods */
+void   pb__key_frame__init
+                     (Pb__KeyFrame         *message);
+size_t pb__key_frame__get_packed_size
+                     (const Pb__KeyFrame   *message);
+size_t pb__key_frame__pack
+                     (const Pb__KeyFrame   *message,
+                      uint8_t             *out);
+size_t pb__key_frame__pack_to_buffer
+                     (const Pb__KeyFrame   *message,
+                      ProtobufCBuffer     *buffer);
+Pb__KeyFrame *
+       pb__key_frame__unpack
+                     (ProtobufCAllocator  *allocator,
+                      size_t               len,
+                      const uint8_t       *data);
+void   pb__key_frame__free_unpacked
+                     (Pb__KeyFrame *message,
+                      ProtobufCAllocator *allocator);
+/* Pb__Header methods */
+void   pb__header__init
+                     (Pb__Header         *message);
+size_t pb__header__get_packed_size
+                     (const Pb__Header   *message);
+size_t pb__header__pack
+                     (const Pb__Header   *message,
+                      uint8_t             *out);
+size_t pb__header__pack_to_buffer
+                     (const Pb__Header   *message,
+                      ProtobufCBuffer     *buffer);
+Pb__Header *
+       pb__header__unpack
+                     (ProtobufCAllocator  *allocator,
+                      size_t               len,
+                      const uint8_t       *data);
+void   pb__header__free_unpacked
+                     (Pb__Header *message,
+                      ProtobufCAllocator *allocator);
 /* --- per-message closures --- */
 
 typedef void (*Pb__Command_Closure)
                  (const Pb__Command *message,
                   void *closure_data);
+typedef void (*Pb__Point_Closure)
+                 (const Pb__Point *message,
+                  void *closure_data);
+typedef void (*Pb__Line_Closure)
+                 (const Pb__Line *message,
+                  void *closure_data);
 typedef void (*Pb__Package_Closure)
                  (const Pb__Package *message,
+                  void *closure_data);
+typedef void (*Pb__KeyFrame_Closure)
+                 (const Pb__KeyFrame *message,
+                  void *closure_data);
+typedef void (*Pb__Header_Closure)
+                 (const Pb__Header *message,
                   void *closure_data);
 
 /* --- services --- */
@@ -107,7 +250,11 @@ typedef void (*Pb__Package_Closure)
 /* --- descriptors --- */
 
 extern const ProtobufCMessageDescriptor pb__command__descriptor;
+extern const ProtobufCMessageDescriptor pb__point__descriptor;
+extern const ProtobufCMessageDescriptor pb__line__descriptor;
 extern const ProtobufCMessageDescriptor pb__package__descriptor;
+extern const ProtobufCMessageDescriptor pb__key_frame__descriptor;
+extern const ProtobufCMessageDescriptor pb__header__descriptor;
 
 PROTOBUF_C__END_DECLS
 
