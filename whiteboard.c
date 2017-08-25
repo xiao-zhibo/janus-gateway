@@ -38,7 +38,11 @@ int janus_whiteboard_parse_header(janus_whiteboard *whiteboard) {
 	return header_len;
 }
 
-int janus_whiteboard_write_with_header(janus_whiteboard *whiteboard) {	
+int janus_whiteboard_add_keyframe(janus_whiteboard *whiteboard) {
+
+}
+
+int janus_whiteboard_write_with_header(janus_whiteboard *whiteboard) {
 	if(!whiteboard || !whiteboard->file)
 		return -1;
 
@@ -250,19 +254,23 @@ janus_whiteboard *janus_whiteboard_create(const char *dir, const char *filename,
 int janus_whiteboard_save_package(janus_whiteboard *whiteboard, char *buffer, uint length, uint8_t **out) {
 	if(!whiteboard)
 		return -1;
+		JANUS_LOG(LOG_WARN, "Error saving frame. -1\n");
 	janus_mutex_lock_nodebug(&whiteboard->mutex);
 	if(!buffer || length < 1) {
 		janus_mutex_unlock_nodebug(&whiteboard->mutex);
+		JANUS_LOG(LOG_WARN, "Error saving frame. -2\n");
 		return -2;
 	}
 	if(!whiteboard->file) {
 		janus_mutex_unlock_nodebug(&whiteboard->mutex);
+		JANUS_LOG(LOG_WARN, "Error saving frame. -3\n");
 		return -3;
 	}
 	Pb__Package *package = pb__package__unpack(NULL, length, buffer);
 	if (package == NULL)
 	{
-		JANUS_LOG(LOG_WARN, "parse whiteboard data error.");
+		JANUS_LOG(LOG_WARN, "parse whiteboard data error. -4");
+		janus_mutex_unlock_nodebug(&whiteboard->mutex);
 		return -4;
 	}
 
@@ -290,9 +298,8 @@ int janus_whiteboard_save_package(janus_whiteboard *whiteboard, char *buffer, ui
 			g_free(packages);
 		}
 		janus_mutex_unlock_nodebug(&whiteboard->mutex);
+		JANUS_LOG(LOG_WARN, "get frame: %d\n", size);
 		return size;
-	} else if (package->type == KLPackageType_KeyFrame) {
-
 	}
 
 	if (package->type != KLPackageType_SceneData) {
@@ -302,7 +309,7 @@ int janus_whiteboard_save_package(janus_whiteboard *whiteboard, char *buffer, ui
 		while(tot > 0) {
 			temp = fwrite(buffer+length-tot, sizeof(char), tot, whiteboard->file);
 			if(temp <= 0) {
-				JANUS_LOG(LOG_WARN, "Error saving frame...\n");
+				JANUS_LOG(LOG_WARN, "Error saving frame: -5\n");
 				janus_mutex_unlock_nodebug(&whiteboard->mutex);
 				return -5;
 			}

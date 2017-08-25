@@ -2845,11 +2845,12 @@ void janus_videoroom_incoming_data(janus_plugin_session *handle, char *buf, int 
 	char *text = g_malloc0(len+1);
 	memcpy(text, buf, len);
 	*(text+len) = '\0';
-	JANUS_LOG(LOG_VERB, "Got a DataChannel message (%zu bytes) to forward: %s\n", strlen(text), text);
 	/* Save the message if we're recording */
 	int ret = janus_recorder_save_frame(participant->drc, text, strlen(text));
 	char *out_buf;
 	ret = janus_whiteboard_save_package(participant->room->whiteboard, buf, len, &out_buf);
+	JANUS_LOG(LOG_WARN, "Got a DataChannel message (%d bytes) to forward: %d\n", len, ret);
+	
 	if (ret > 0) {
 		janus_videoroom_relay_whiteboard_packet(participant, out_buf, ret);
 	} else {
