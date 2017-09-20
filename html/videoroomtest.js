@@ -152,7 +152,7 @@ $(document).ready(function() {
 								},
 								onmessage: function(msg, jsep) {
 									Janus.debug(" ::: Got a message (publisher) :::");
-									Janus.debug(JSON.stringify(msg));
+									Janus.debug(msg);
 									var event = msg["videoroom"];
 									Janus.debug("Event: " + event);
 									if(event != undefined && event != null) {
@@ -170,8 +170,10 @@ $(document).ready(function() {
 												for(var f in list) {
 													var id = list[f]["id"];
 													var display = list[f]["display"];
-													Janus.debug("  >> [" + id + "] " + display);
-													newRemoteFeed(id, display)
+													var audio = list[f]["audio_codec"];
+													var video = list[f]["video_codec"];
+													Janus.debug("  >> [" + id + "] " + display + " (audio: " + audio + ", video: " + video + ")");
+													newRemoteFeed(id, display, audio, video);
 												}
 											}
 										} else if(event === "destroyed") {
@@ -189,8 +191,10 @@ $(document).ready(function() {
 												for(var f in list) {
 													var id = list[f]["id"];
 													var display = list[f]["display"];
-													Janus.debug("  >> [" + id + "] " + display);
-													newRemoteFeed(id, display)
+													var audio = list[f]["audio_codec"];
+													var video = list[f]["video_codec"];
+													Janus.debug("  >> [" + id + "] " + display + " (audio: " + audio + ", video: " + video + ")");
+													newRemoteFeed(id, display, audio, video);
 												}
 											} else if(msg["leaving"] !== undefined && msg["leaving"] !== null) {
 												// One of the publishers has gone away?
@@ -252,12 +256,31 @@ $(document).ready(function() {
 										Janus.debug("Handling SDP as well...");
 										Janus.debug(jsep);
 										sfutest.handleRemoteJsep({jsep: jsep});
+										// Check if any of the media we wanted to publish has
+										// been rejected (e.g., wrong or unsupported codec)
+										var audio = msg["audio_codec"];
+										if(mystream && mystream.getAudioTracks() && mystream.getAudioTracks().length > 0 && !audio) {
+											// Audio has been rejected
+											toastr.warning("Our audio stream has been rejected, viewers won't hear us");
+										}
+										var video = msg["video_codec"];
+										if(mystream && mystream.getVideoTracks() && mystream.getVideoTracks().length > 0 && !video) {
+											// Video has been rejected
+											toastr.warning("Our video stream has been rejected, viewers won't hear us");
+											// Hide the webcam video
+											$('#myvideo').hide();
+											$('#videolocal').append(
+												'<div class="no-video-container">' +
+													'<i class="fa fa-video-camera fa-5 no-video-icon" style="height: 100%;"></i>' +
+													'<span class="no-video-text" style="font-size: 16px;">Video rejected, no webcam</span>' +
+												'</div>');
+										}
 									}
 								},
 								onlocalstream: function(stream) {
 									Janus.debug(" ::: Got a local stream :::");
 									mystream = stream;
-									Janus.debug(JSON.stringify(stream));
+									Janus.debug(stream);
 									$('#videolocal').empty();
 									$('#videojoin').hide();
 									$('#videos').removeClass('hide').show();
@@ -409,7 +432,7 @@ function unpublishOwnFeed() {
 	sfutest.send({"message": unpublish});
 }
 
-function newRemoteFeed(id, display) {
+function newRemoteFeed(id, display, audio, video) {
 	// A new feed has been published, create a new plugin handle and attach to it as a listener
 	var remoteFeed = null;
 	janus.attach(
@@ -427,6 +450,11 @@ function newRemoteFeed(id, display) {
 				// publisher is sending them, set the 'offer_audio', 'offer_video' or
 				// 'offer_data' properties to false (they're true by default), e.g.:
 				// 		listen["offer_video"] = false;
+				// For example, if the publisher is VP8 and this is Safari, let's avoid video
+				if(video === "vp8" && adapter.browserDetails.browser === "safari") {
+					toastr.warning("Publisher is using VP8, but Safari doesn't support it: disabling video");
+					listen["offer_video"] = false;
+				}
 				remoteFeed.send({"message": listen});
 			},
 			error: function(error) {
@@ -435,7 +463,7 @@ function newRemoteFeed(id, display) {
 			},
 			onmessage: function(msg, jsep) {
 				Janus.debug(" ::: Got a message (listener) :::");
-				Janus.debug(JSON.stringify(msg));
+				Janus.debug(msg);
 				var event = msg["videoroom"];
 				Janus.debug("Event: " + event);
 				if(msg["error"] !== undefined && msg["error"] !== null) {
@@ -508,11 +536,19 @@ function newRemoteFeed(id, display) {
 			},
 			onremotestream: function(stream) {
 				Janus.debug("Remote feed #" + remoteFeed.rfindex);
-				if($('#remotevideo'+remoteFeed.rfindex).length === 0) {
-					// No remote video yet
-					$('#videoremote'+remoteFeed.rfindex).append('<video class="rounded centered" id="waitingvideo' + remoteFeed.rfindex + '" width=320 height=240 />');
-					$('#videoremote'+remoteFeed.rfindex).append('<video class="rounded centered relative hide" id="remotevideo' + remoteFeed.rfindex + '" width="100%" height="100%" autoplay/>');
+				if($('#remotevideo'+remoteFeed.rfindex).length > 0) {
+					// Been here already: let's see if anything changed
+					var videoTracks = stream.getVideoTracks();
+					if(videoTracks && videoTracks.length > 0 && !videoTracks[0].muted) {
+						$('#novideo'+remoteFeed.rfindex).remove();
+						if($("#remotevideo"+remoteFeed.rfindex).get(0).videoWidth)
+							$('#remotevideo'+remoteFeed.rfindex).show();
+					}
+					return;
 				}
+				// No remote video yet
+				$('#videoremote'+remoteFeed.rfindex).append('<video class="rounded centered" id="waitingvideo' + remoteFeed.rfindex + '" width=320 height=240 />');
+				$('#videoremote'+remoteFeed.rfindex).append('<video class="rounded centered relative hide" id="remotevideo' + remoteFeed.rfindex + '" width="100%" height="100%" autoplay/>');
 				$('#videoremote'+remoteFeed.rfindex).append(
 					'<span class="label label-primary hide" id="curres'+remoteFeed.rfindex+'" style="position: absolute; bottom: 0px; left: 0px; margin: 15px;"></span>' +
 					'<span class="label label-info hide" id="curbitrate'+remoteFeed.rfindex+'" style="position: absolute; bottom: 0px; right: 0px; margin: 15px;"></span>');
@@ -522,7 +558,8 @@ function newRemoteFeed(id, display) {
 						remoteFeed.spinner.stop();
 					remoteFeed.spinner = null;
 					$('#waitingvideo'+remoteFeed.rfindex).remove();
-					$('#remotevideo'+remoteFeed.rfindex).removeClass('hide');
+					if(this.videoWidth)
+						$('#remotevideo'+remoteFeed.rfindex).removeClass('hide').show();
 					var width = this.videoWidth;
 					var height = this.videoHeight;
 					$('#curres'+remoteFeed.rfindex).removeClass('hide').text(width+'x'+height).show();
@@ -541,7 +578,7 @@ function newRemoteFeed(id, display) {
 					// No remote video
 					$('#remotevideo'+remoteFeed.rfindex).hide();
 					$('#videoremote'+remoteFeed.rfindex).append(
-						'<div class="no-video-container">' +
+						'<div id="novideo'+remoteFeed.rfindex+'" class="no-video-container">' +
 							'<i class="fa fa-video-camera fa-5 no-video-icon" style="height: 100%;"></i>' +
 							'<span class="no-video-text" style="font-size: 16px;">No remote video available</span>' +
 						'</div>');
@@ -566,7 +603,9 @@ function newRemoteFeed(id, display) {
 				if(remoteFeed.spinner !== undefined && remoteFeed.spinner !== null)
 					remoteFeed.spinner.stop();
 				remoteFeed.spinner = null;
+				$('#remotevideo'+remoteFeed.rfindex).remove();
 				$('#waitingvideo'+remoteFeed.rfindex).remove();
+				$('#novideo'+remoteFeed.rfindex).remove();
 				$('#curbitrate'+remoteFeed.rfindex).remove();
 				$('#curres'+remoteFeed.rfindex).remove();
 				if(bitrateTimer[remoteFeed.rfindex] !== null && bitrateTimer[remoteFeed.rfindex] !== null) 

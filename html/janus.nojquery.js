@@ -112,9 +112,6 @@ Janus.init = function(options) {
 						callback(devices);
 						// Get rid of the now useless stream
 						try {
-							stream.stop();
-						} catch(e) {}
-						try {
 							var tracks = stream.getTracks();
 							for(var i in tracks) {
 								var mst = tracks[i];
@@ -1348,14 +1345,16 @@ function Janus(gatewayCallbacks) {
 		};
 		if(stream !== null && stream !== undefined) {
 			Janus.log('Adding local stream');
-			config.pc.addStream(stream);
+			stream.getTracks().forEach(track => config.pc.addTrack(track, stream));
 			pluginHandle.onlocalstream(stream);
 		}
-		config.pc.onaddstream = function(remoteStream) {
-			Janus.log("Handling Remote Stream");
-			Janus.debug(remoteStream);
-			config.remoteStream = remoteStream;
-			pluginHandle.onremotestream(remoteStream.stream);
+		config.pc.ontrack = function(event) {
+			Janus.log("Handling Remote Track");
+			Janus.debug(event);
+			if(!event.streams)
+				return;
+			config.remoteStream = event.streams[0];
+			pluginHandle.onremotestream(config.remoteStream);
 		};
 		// Any data channel to create?
 		if(isDataEnabled(media)) {
@@ -2107,7 +2106,7 @@ function Janus(gatewayCallbacks) {
 									// New stats
 									inStats = true;
 								} else if(res.type == 'ssrc' && res.bytesReceived &&
-										medium === "video" && (res.googCodecName === "VP8" || res.googCodecName === "")) {
+										(res.googCodecName === "VP8" || res.googCodecName === "")) {
 									// Older Chromer versions
 									inStats = true;
 								}
@@ -2195,16 +2194,7 @@ function Janus(gatewayCallbacks) {
 			config.bitrate.tsbefore = null;
 			config.bitrate.value = null;
 			try {
-				// Try a MediaStream.stop() first
-				if(!config.streamExternal && config.myStream !== null && config.myStream !== undefined) {
-					Janus.log("Stopping local stream");
-					config.myStream.stop();
-				}
-			} catch(e) {
-				// Do nothing if this fails
-			}
-			try {
-				// Try a MediaStreamTrack.stop() for each track as well
+				// Try a MediaStreamTrack.stop() for each track
 				if(!config.streamExternal && config.myStream !== null && config.myStream !== undefined) {
 					Janus.log("Stopping local stream tracks");
 					var tracks = config.myStream.getTracks();

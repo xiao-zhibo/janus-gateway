@@ -29,7 +29,7 @@ bin_PROGRAMS = janus
 
 headerdir = $(includedir)/janus
 header_HEADERS = apierror.h config.h log.h debug.h mutex.h record.h \
-	rtcp.h rtp.h sdp-utils.h ip-utils.h utils.h protobuf/command.pb-c.h whiteboard.h
+	rtcp.h rtp.h sdp-utils.h ip-utils.h utils.h text2pcap.h protobuf/command.pb-c.h whiteboard.h
 
 pluginsheaderdir = $(includedir)/janus/plugins
 pluginsheader_HEADERS = plugins/plugin.h
@@ -134,6 +134,8 @@ janus_SOURCES = \
 	utils.h \
 	version.c \
 	version.h \
+	text2pcap.c \
+	text2pcap.h \
 	plugins/plugin.c \
 	plugins/plugin.h \
 	transports/transport.h \
@@ -175,7 +177,7 @@ build_date = $(shell date)
 endif
 
 version.c: FORCE | $(dir_target)
-	echo $(build_date) | awk 'BEGIN {} {print "const char *janus_build_git_time = \""$$0"\";"} END {} ' >> version.c
+	echo "$(build_date)" | awk 'BEGIN {} {print "const char *janus_build_git_time = \""$$0"\";"} END {} ' >> version.c
 
 $(dir_present):
 	`which git` rev-parse HEAD | awk 'BEGIN {print "#include \"version.h\""} {print "const char *janus_build_git_sha = \"" $$0"\";"} END {}' > version.c
@@ -406,6 +408,8 @@ man1_MANS += postprocessing/janus-pp-rec.1
 janus_pp_rec_SOURCES = \
 	postprocessing/pp-g711.c \
 	postprocessing/pp-g711.h \
+	postprocessing/pp-g722.c \
+	postprocessing/pp-g722.h \
 	postprocessing/pp-h264.c \
 	postprocessing/pp-h264.h \
 	postprocessing/pp-opus.c \
