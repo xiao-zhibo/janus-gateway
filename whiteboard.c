@@ -251,7 +251,7 @@ janus_whiteboard *janus_whiteboard_create(const char *dir, const char *filename,
 	return whiteboard;
 }
 
-int janus_whiteboard_save_package(janus_whiteboard *whiteboard, char *buffer, uint length, uint8_t **out) {
+int janus_whiteboard_save_package(janus_whiteboard *whiteboard, char *buffer, uint16_t length, uint8_t **out) {
 	if(!whiteboard)
 		return -1;
 		JANUS_LOG(LOG_WARN, "Error saving frame. -1\n");
