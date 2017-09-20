@@ -1,3 +1,10 @@
+# mac
+.DS_Store
+
+# sublime
+.tags
+.tags_sorted_by_file
+
 cmdline.c
 cmdline.h
 version.c
@@ -27,6 +34,9 @@ Makefile.in
 /config.guess
 /config.status
 /config.sub
+
+/*.out
+/protobuf/*.o
 
 /*.o
 /plugins/*.o
