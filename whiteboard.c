@@ -2,44 +2,88 @@
 #include <sys/stat.h>
 #include "debug.h"
 #include "utils.h"
+/*
+ * 白板数据和白板头部分开成两个文件，均采用以下形式存储
+ *
+ * 头部
+ *               |--------------|       | data length |
+ *               |     header   |------>| ----------- |
+ *               |--------------|       | binary data |
+ *
+ * 数据
+ *               |  frame pkt1  |---|
+ *               |--------------|   |
+ *               |  frame pkt2  |   |   | data length |
+ *               |--------------|   |-->| ----------- |
+ *               |  frame pkt3  |       | binary data |
+ *               |--------------|
+ *               |  frame pkt4  |
+ *               |--------------|
+ *               |    ......    |
+ * 这样的好处是：头部可以定时保存，避免数据文件无法找到索引导致无法读取，同时可以避免存在同一文件开头时造成的性能问题
+ * 也避免了存同一文件尾部只能在房间关闭时才能保存头部的尴尬，容易丢失数据。
+ */
 
-int janus_whiteboard_parse_header(janus_whiteboard *whiteboard) {
-	if(!whiteboard || !whiteboard->file)
-		return -1;
-	int cur_offset = ftell(whiteboard->file);
-	fseek(whiteboard->file, 0, SEEK_SET);
-	int header_len = 0;
+/*! 本地函数，前置声明 */
+int janus_whiteboard_read_packet_from_file(void* dst, size_t len, FILE *src_file);
+int janus_whiteboard_parse_or_create_header_l(janus_whiteboard *whiteboard);
 
-	if(fread(&header_len, sizeof(int), 1, whiteboard->file) == 1) {
-		char *buffer = g_malloc0(header_len);
-		int temp = 0, tot = header_len;
-		while(tot > 0) {
-			temp = fread(buffer+header_len-tot, sizeof(char), tot, whiteboard->file);
-			if(temp <= 0) {
-				JANUS_LOG(LOG_ERR, "Error saving frame...\n");
-				fseek(whiteboard->file, 0, SEEK_END);
-				return -1;
-			}
-			tot -= temp;
+/*! 从指定文件读取len字节到dst，
+    @returns 正常读取返回 0，读取失败返回 -1 */
+int janus_whiteboard_read_packet_from_file(void* dst, size_t len, FILE *src_file) {
+	size_t ret = 0, total = len;
+	while(total > 0) {
+		ret = fread(dst + (len-total), sizeof(unsigned char), total, src_file);
+		if (ret >= total) {
+			return 0;
+		} else if (ret <= 0) {
+			JANUS_LOG(LOG_ERR, "Error reading packet...\n");
+			return -1;
 		}
-		whiteboard->header = pb__header__unpack(NULL, header_len, buffer);
-		whiteboard->package_data_offset = header_len + 4;
-		g_free(buffer);
-	} else {
-		whiteboard->header = g_malloc0(sizeof(Pb__Header));
-		memset(whiteboard->header, 0, sizeof(Pb__Header));
-		whiteboard->header->keyframes = g_malloc0(sizeof(Pb__KeyFrame*) * 10000);
-		whiteboard->header->n_keyframes = 1;
-		whiteboard->header->keyframes[0] = g_malloc0(sizeof(Pb__KeyFrame));
-		whiteboard->header->keyframes[0]->offset = 0;
-		whiteboard->header->keyframes[0]->timestamp = 0;
+		total -= ret;
 	}
-	fseek(whiteboard->file, cur_offset, SEEK_SET);
-	return header_len;
+	return 0;
+}
+
+/*! 初始化header
+    @returns 正常初始化返回header_len长度（非负数）， 异常返回 -1 */
+int janus_whiteboard_parse_or_create_header_l(janus_whiteboard *whiteboard) {
+
+	if(!whiteboard || !whiteboard->header_file)
+		return -1;
+
+	int header_len = 0;
+	fseek(whiteboard->header_file, 0, SEEK_SET);
+
+	// 尝试解析数据到whiteboard->header，如果不成功则执行创建操作
+	if(fread(&header_len, sizeof(int), 1, whiteboard->header_file) == 1) {
+		char *buffer = g_malloc0(header_len);
+		if (janus_whiteboard_read_packet_from_file(buffer, header_len, whiteboard->header_file) < 0) {
+			JANUS_LOG(LOG_ERR, "Error happens when reading header packet from basefile: %s\n", whiteboard->filename);
+			g_free(buffer);
+			return -1;
+		}
+		whiteboard->header = pb__header__unpack(NULL, header_len, (const uint8_t *)buffer);
+		g_free(buffer);
+	}
+
+	if (whiteboard->header)
+		return header_len;
+
+	whiteboard->header = g_malloc0(sizeof(Pb__Header));
+	memset(whiteboard->header, 0, sizeof(Pb__Header));
+	// FIXME: 添加一个变量capacity，代表容量，可能更好
+	whiteboard->header->keyframes = g_malloc0(sizeof(Pb__KeyFrame*) * MAX_PACKET_CAPACITY);
+	whiteboard->header->n_keyframes = 1;
+	whiteboard->header->keyframes[0] = g_malloc0(sizeof(Pb__KeyFrame));
+	whiteboard->header->keyframes[0]->offset = 0;
+	whiteboard->header->keyframes[0]->timestamp = 0;
+
+	return 0;
 }
 
 int janus_whiteboard_add_keyframe(janus_whiteboard *whiteboard) {
-
+	return 0;
 }
 
 int janus_whiteboard_write_with_header(janus_whiteboard *whiteboard) {
@@ -181,16 +225,17 @@ janus_whiteboard *janus_whiteboard_create(const char *dir, const char *filename,
 	/* Create the recorder */
 	janus_whiteboard *whiteboard = g_malloc0(sizeof(janus_whiteboard));
 	if(whiteboard == NULL) {
-		JANUS_LOG(LOG_FATAL, "Memory error!\n");
+		JANUS_LOG(LOG_FATAL, "Out of Memory when alloc memory for struct whiteboard!\n");
 		return NULL;
 	}
 	whiteboard->dir = NULL;
 	whiteboard->filename = NULL;
+	whiteboard->header_file = NULL;
 	whiteboard->file = NULL;
 	whiteboard->package_data_offset = 0;
 	
+	/* Check if this directory exists, and create it if needed */
 	if(dir != NULL) {
-		/* Check if this directory exists, and create it if needed */
 		struct stat s;
 		int err = stat(dir, &s);
 		if(err == -1) {
@@ -218,36 +263,52 @@ janus_whiteboard *janus_whiteboard_create(const char *dir, const char *filename,
 			}
 		}
 	}
-	char newname[1024];
-	memset(newname, 0, 1024);
-	g_snprintf(newname, 1024, "%s.mjr", filename);
 
+	const size_t name_length_l = 1024;
+	/* generate filename */
+	char data_file_name[name_length_l], header_file_name[name_length_l];
+	memset(data_file_name,   0, name_length_l);
+	memset(header_file_name, 0, name_length_l);
+	g_snprintf(data_file_name,   name_length_l, "%s.data", filename);
+	g_snprintf(header_file_name, name_length_l, "%s.head", filename);
+	/* generate path name */
+	char dir_local[name_length_l], data_path[name_length_l], header_path[name_length_l];
+	memset(dir_local,   0, name_length_l);
+	memset(data_path,   0, name_length_l);
+	memset(header_path, 0, name_length_l);
+	g_snprintf(dir_local,   name_length_l, "%s", dir == NULL ? "" : dir);
+	g_snprintf(data_path,   name_length_l, "%s/%s", dir_local, data_file_name);
+	g_snprintf(header_path, name_length_l, "%s/%s", dir_local, header_file_name);
 
-	/* Try opening the file now */
-	if(dir == NULL) {
-		whiteboard->file = fopen(newname, "ab+");
-	} else {
-		char path[1024];
-		memset(path, 0, 1024);
-		g_snprintf(path, 1024, "%s/%s", dir, newname);
-		whiteboard->file = fopen(path, "ab+");
-	}
+	/* Try opening the data file */
+	whiteboard->file = fopen(data_path, "ab+");
 	if(whiteboard->file == NULL) {
-		JANUS_LOG(LOG_ERR, "fopen error: %d\n", errno);
+		JANUS_LOG(LOG_ERR, "fopen %s error: %d\n", data_path, errno);
+		return NULL;
+	}
+	/* Try opening the header file */
+	whiteboard->header_file = fopen(header_path, "ab+");
+	if(whiteboard->header_file == NULL) {
+		/* avoid memory leak */
+		fclose(whiteboard->file);
+		JANUS_LOG(LOG_ERR, "fopen %s error: %d\n", header_path, errno);
 		return NULL;
 	}
 	if(dir)
 		whiteboard->dir = g_strdup(dir);
-	whiteboard->filename = g_strdup(newname);
+	whiteboard->filename = g_strdup(filename);
 
-	if (ftell(whiteboard->file) != 0) {
-		janus_whiteboard_parse_header(whiteboard);
-		whiteboard->scene_packages = g_malloc0(sizeof(Pb__Package*) * 10000);
-		whiteboard->scene_package_num = janus_whiteboard_scene_data(whiteboard, whiteboard->scene, whiteboard->scene_packages);
-		return NULL;
-	}
-	
 	janus_mutex_init(&whiteboard->mutex);
+    janus_whiteboard_parse_or_create_header_l(whiteboard);
+
+	whiteboard->scene_packages = g_malloc0(sizeof(Pb__Package*) * MAX_PACKET_CAPACITY);
+	if (whiteboard->scene_packages) {
+	    whiteboard->scene_package_num = janus_whiteboard_scene_data(whiteboard, whiteboard->scene, whiteboard->scene_packages);
+	} else {
+		whiteboard->scene_package_num = 0;
+		JANUS_LOG(LOG_ERR, "Out of Memory when alloc memory for %d struct scene_packages!\n", MAX_PACKET_CAPACITY);
+	}
+
 	return whiteboard;
 }
 

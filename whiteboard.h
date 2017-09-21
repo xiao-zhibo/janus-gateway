@@ -34,7 +34,9 @@ typedef struct janus_whiteboard {
 	char *dir;
 	/*! \brief Filename of this whiteboard file */ 
 	char *filename;
-	/*! \brief whiteboard file */
+	/*! \brief whiteboard header file */
+	FILE *header_file;
+	/*! \brief whiteboard data file */
 	FILE *file;
 	
 	int scene;
@@ -47,6 +49,7 @@ typedef struct janus_whiteboard {
 	janus_mutex mutex;
 } janus_whiteboard;
 
+#define MAX_PACKET_CAPACITY 10000
 /*! \brief Initialize the whiteboard code
  * @param[in] tempnames Whether the filenames should have a temporary extension, while saving, or not
  * @param[in] extension Extension to add in case tempnames is true */
