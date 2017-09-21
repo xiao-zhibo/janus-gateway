@@ -27,6 +27,7 @@
 /*! 本地函数，前置声明 */
 int janus_whiteboard_read_packet_from_file(void* dst, size_t len, FILE *src_file);
 int janus_whiteboard_parse_or_create_header_l(janus_whiteboard *whiteboard);
+int janus_whiteboard_scene_data_l(janus_whiteboard *whiteboard, int scene, Pb__Package** packages);
 
 /*! 从指定文件读取len字节到dst，
     @returns 正常读取返回 0，读取失败返回 -1 */
@@ -82,145 +83,7 @@ int janus_whiteboard_parse_or_create_header_l(janus_whiteboard *whiteboard) {
 	return 0;
 }
 
-int janus_whiteboard_add_keyframe(janus_whiteboard *whiteboard) {
-	return 0;
-}
-
-int janus_whiteboard_write_with_header(janus_whiteboard *whiteboard) {
-	if(!whiteboard || !whiteboard->file)
-		return -1;
-
-	char path[1024];
-	char tmp_path[1024];
-	memset(path, 0, 1024);
-	if (whiteboard->dir != NULL) {
-		g_snprintf(path, 1024, "%s/%s", whiteboard->dir, whiteboard->filename);
-	} else {
-		g_snprintf(path, 1024, "%s", whiteboard->filename);
-	}
-	g_snprintf(tmp_path, 1024, "%s.tmp", path);
-	FILE *file = fopen(path, "wb");
-
-	int header_len = pb__header__get_packed_size(whiteboard->header);
-	uint8_t *header_buf = g_malloc0(header_len);
-	fwrite(&header_len, sizeof(uint), 1, whiteboard->file);
-	int temp = 0, tot = header_len;
-	while(tot > 0) {
-		temp = fwrite(header_buf+header_len-tot, sizeof(char), tot, whiteboard->file);
-		if(temp <= 0) {
-			JANUS_LOG(LOG_WARN, "Error saving frame...\n");
-			g_free(header_buf);
-			fclose(file);
-			return -2;
-		}
-		tot -= temp;
-	}
-	g_free(header_buf);
-
-	fseek(whiteboard->file, whiteboard->package_data_offset, SEEK_SET);
-	int len;
-	while(fread(&len, sizeof(int), 1, whiteboard->file) == 1) {
-		uint8_t *buf = g_malloc0(len);
-
-		temp = 0, tot = len;
-		while(tot > 0) {
-			temp = fread(buf+len-tot, sizeof(char), tot, whiteboard->file);
-			if(temp <= 0) {
-				JANUS_LOG(LOG_WARN, "Error reading frame...\n");
-				g_free(buf);
-				fclose(file);
-				return -3;
-			}
-			tot -= temp;
-		}
-
-		fwrite(&len, sizeof(int), 1, file);
-		temp = 0, tot = len;
-		while(tot > 0) {
-			temp = fwrite(buf+len-tot, sizeof(char), tot, file);
-			if(temp <= 0) {
-				JANUS_LOG(LOG_WARN, "Error saving frame...\n");
-				g_free(buf);
-				fclose(file);
-				return -4;
-			}
-			tot -= temp;
-		}
-
-		g_free(buf);
-	}
-	fclose(file);
-	fclose(whiteboard->file);
-	rename(tmp_path, path);
-	return 0;
-}
-
-int janus_whiteboard_scene_data(janus_whiteboard *whiteboard, int scene, Pb__Package** packages) {
-	if (whiteboard == NULL || whiteboard->file == NULL)
-		return -1;
-	int packageLength = 0;
-	fseek(whiteboard->file, whiteboard->package_data_offset, SEEK_SET);
-	int packLen;
-
-	while(fread(&packLen, sizeof(int), 1, whiteboard->file) != 1) {
-		char *buffer = g_malloc0(packLen);
-		int temp = 0, tot = packLen;
-		while(tot > 0) {
-			temp = fread(buffer+packLen-tot, sizeof(char), tot, whiteboard->file);
-			if(temp <= 0) {
-				JANUS_LOG(LOG_ERR, "Error saving frame...\n");
-				fseek(whiteboard->file, 0, SEEK_END);
-				return -1;
-			}
-			tot -= temp;
-		}
-		Pb__Package *package = pb__package__unpack(NULL, packLen, buffer);
-		if (package == NULL)
-		{
-			JANUS_LOG(LOG_WARN, "parse whiteboard data error.");
-			fseek(whiteboard->file, 0, SEEK_END);
-			return -1;
-		}
-		if (package->scene == scene) {
-			if (package->type == KLPackageType_CleanDraw) {
-				packageLength = 0;
-			} else {
-				packages[packageLength] = package;
-				packageLength ++;
-			}
-		}
-		g_free(buffer);
-	}
-	fseek(whiteboard->file, 0, SEEK_END);
-	return packageLength;
-}
-
-uint8_t *janus_whiteboard_packed_data(Pb__Package **packages, int len, int *out_len) {
-	if (packages == NULL || len <= 0) 
-		return -1;
-
-	int cmd_num = 0;
-	for (int i = 0; i < len; i ++) {
-		cmd_num += packages[i]->n_cmd;
-	}
-	Pb__Package package;
-	package = *packages[0];
-	package.n_cmd = cmd_num;
-	package.cmd = g_malloc0(sizeof(Pb__Command) * cmd_num);
-	int k = 0;
-	for (int i = 0; i < len; i ++) {
-		Pb__Command **cmd = packages[i]->cmd;
-		for (int j = 0; j < packages[i]->n_cmd; j ++) {
-			package.cmd[k++] = cmd[j];
-		}
-	}
-	*out_len = pb__package__get_packed_size(&package);
-	uint8_t *buffer = g_malloc0(*out_len);
-	pb__package__pack(&package, buffer);
-	g_free(package.cmd);
-	return buffer;
-}
-
+/*! 创建白板模块，如果创建成功，则尝试从文件里读取历史保留的数据到当前场景(scene) */
 janus_whiteboard *janus_whiteboard_create(const char *dir, const char *filename, int scene) {
 	/* Create the recorder */
 	janus_whiteboard *whiteboard = g_malloc0(sizeof(janus_whiteboard));
@@ -303,13 +166,83 @@ janus_whiteboard *janus_whiteboard_create(const char *dir, const char *filename,
 
 	whiteboard->scene_packages = g_malloc0(sizeof(Pb__Package*) * MAX_PACKET_CAPACITY);
 	if (whiteboard->scene_packages) {
-	    whiteboard->scene_package_num = janus_whiteboard_scene_data(whiteboard, whiteboard->scene, whiteboard->scene_packages);
+	    whiteboard->scene_package_num = janus_whiteboard_scene_data_l(whiteboard, whiteboard->scene, whiteboard->scene_packages);
 	} else {
 		whiteboard->scene_package_num = 0;
 		JANUS_LOG(LOG_ERR, "Out of Memory when alloc memory for %d struct scene_packages!\n", MAX_PACKET_CAPACITY);
 	}
 
 	return whiteboard;
+}
+
+int janus_whiteboard_scene_data_l(janus_whiteboard *whiteboard, int scene, Pb__Package** packages) {
+	if (whiteboard == NULL || whiteboard->file == NULL)
+		return -1;
+	int packageLength = 0;
+	fseek(whiteboard->file, whiteboard->package_data_offset, SEEK_SET);
+	int packLen;
+
+	while(fread(&packLen, sizeof(int), 1, whiteboard->file) != 1) {
+		char *buffer = g_malloc0(packLen);
+		int temp = 0, tot = packLen;
+		while(tot > 0) {
+			temp = fread(buffer+packLen-tot, sizeof(char), tot, whiteboard->file);
+			if(temp <= 0) {
+				JANUS_LOG(LOG_ERR, "Error saving frame...\n");
+				fseek(whiteboard->file, 0, SEEK_END);
+				return -1;
+			}
+			tot -= temp;
+		}
+		Pb__Package *package = pb__package__unpack(NULL, packLen, buffer);
+		if (package == NULL)
+		{
+			JANUS_LOG(LOG_WARN, "parse whiteboard data error.");
+			fseek(whiteboard->file, 0, SEEK_END);
+			return -1;
+		}
+		if (package->scene == scene) {
+			if (package->type == KLPackageType_CleanDraw) {
+				packageLength = 0;
+			} else {
+				packages[packageLength] = package;
+				packageLength ++;
+			}
+		}
+		g_free(buffer);
+	}
+	fseek(whiteboard->file, 0, SEEK_END);
+	return packageLength;
+}
+
+uint8_t *janus_whiteboard_packed_data(Pb__Package **packages, int len, int *out_len) {
+	if (packages == NULL || len <= 0) 
+		return -1;
+
+	int cmd_num = 0;
+	for (int i = 0; i < len; i ++) {
+		cmd_num += packages[i]->n_cmd;
+	}
+	Pb__Package package;
+	package = *packages[0];
+	package.n_cmd = cmd_num;
+	package.cmd = g_malloc0(sizeof(Pb__Command) * cmd_num);
+	int k = 0;
+	for (int i = 0; i < len; i ++) {
+		Pb__Command **cmd = packages[i]->cmd;
+		for (int j = 0; j < packages[i]->n_cmd; j ++) {
+			package.cmd[k++] = cmd[j];
+		}
+	}
+	*out_len = pb__package__get_packed_size(&package);
+	uint8_t *buffer = g_malloc0(*out_len);
+	pb__package__pack(&package, buffer);
+	g_free(package.cmd);
+	return buffer;
+}
+
+int janus_whiteboard_add_keyframe(janus_whiteboard *whiteboard) {
+	return 0;
 }
 
 int janus_whiteboard_save_package(janus_whiteboard *whiteboard, char *buffer, uint16_t length, uint8_t **out) {
@@ -341,7 +274,7 @@ int janus_whiteboard_save_package(janus_whiteboard *whiteboard, char *buffer, ui
 			pb__package__free_unpacked(whiteboard->scene_packages[i], NULL);
 			whiteboard->scene_packages[i] = NULL;
 		}
-		whiteboard->scene_package_num = janus_whiteboard_scene_data(whiteboard, whiteboard->scene, whiteboard->scene_packages);
+		whiteboard->scene_package_num = janus_whiteboard_scene_data_l(whiteboard, whiteboard->scene, whiteboard->scene_packages);
 		if (whiteboard->scene_package_num <= 0)
 			JANUS_LOG(LOG_WARN, "save whiteboard package num : %d", whiteboard->scene_package_num);
 	} else if (package->type == KLPackageType_SceneData) {
@@ -351,7 +284,7 @@ int janus_whiteboard_save_package(janus_whiteboard *whiteboard, char *buffer, ui
 			*out = janus_whiteboard_packed_data(whiteboard->scene_packages, whiteboard->scene_package_num, &size);
 		} else if (package->scene >= 0) {
 			Pb__Package **packages = g_malloc0(sizeof(Pb__Package*) * 10000);
-			int num = janus_whiteboard_scene_data(whiteboard, whiteboard->scene, packages);
+			int num = janus_whiteboard_scene_data_l(whiteboard, whiteboard->scene, packages);
 			*out = janus_whiteboard_packed_data(packages, num, &size);
 			for (int i = 0; i < num; i ++) {
 				pb__package__free_unpacked(packages[i], NULL);
@@ -398,6 +331,75 @@ int janus_whiteboard_close(janus_whiteboard *whiteboard) {
 		JANUS_LOG(LOG_WARN, "File is %zu bytes: %s\n", fsize, whiteboard->filename);
 	}
 	janus_mutex_unlock_nodebug(&whiteboard->mutex);
+	return 0;
+}
+
+int janus_whiteboard_write_with_header(janus_whiteboard *whiteboard) {
+	if(!whiteboard || !whiteboard->file)
+		return -1;
+
+	char path[1024];
+	char tmp_path[1024];
+	memset(path, 0, 1024);
+	if (whiteboard->dir != NULL) {
+		g_snprintf(path, 1024, "%s/%s", whiteboard->dir, whiteboard->filename);
+	} else {
+		g_snprintf(path, 1024, "%s", whiteboard->filename);
+	}
+	g_snprintf(tmp_path, 1024, "%s.tmp", path);//可以去掉
+	FILE *file = fopen(path, "wb");
+
+	int header_len = pb__header__get_packed_size(whiteboard->header);
+	uint8_t *header_buf = g_malloc0(header_len);
+	fwrite(&header_len, sizeof(uint), 1, whiteboard->file);
+	int temp = 0, tot = header_len;
+	while(tot > 0) {
+		temp = fwrite(header_buf+header_len-tot, sizeof(char), tot, whiteboard->file);
+		if(temp <= 0) {
+			JANUS_LOG(LOG_WARN, "Error saving frame...\n");
+			g_free(header_buf);
+			fclose(file);
+			return -2;
+		}
+		tot -= temp;
+	}
+	g_free(header_buf);
+
+	fseek(whiteboard->file, whiteboard->package_data_offset, SEEK_SET);
+	int len;
+	while(fread(&len, sizeof(int), 1, whiteboard->file) == 1) {
+		uint8_t *buf = g_malloc0(len);
+
+		temp = 0, tot = len;
+		while(tot > 0) {
+			temp = fread(buf+len-tot, sizeof(char), tot, whiteboard->file);
+			if(temp <= 0) {
+				JANUS_LOG(LOG_WARN, "Error reading frame...\n");
+				g_free(buf);
+				fclose(file);
+				return -3;
+			}
+			tot -= temp;
+		}
+
+		fwrite(&len, sizeof(int), 1, file);
+		temp = 0, tot = len;
+		while(tot > 0) {
+			temp = fwrite(buf+len-tot, sizeof(char), tot, file);
+			if(temp <= 0) {
+				JANUS_LOG(LOG_WARN, "Error saving frame...\n");
+				g_free(buf);
+				fclose(file);
+				return -4;
+			}
+			tot -= temp;
+		}
+
+		g_free(buf);
+	}
+	fclose(file);
+	fclose(whiteboard->file);
+	rename(tmp_path, path);// can be remove
 	return 0;
 }
 
