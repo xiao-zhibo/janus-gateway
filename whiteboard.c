@@ -23,15 +23,17 @@
  * 这样的好处是：头部可以定时保存，避免数据文件无法找到索引导致无法读取，同时可以避免存在同一文件开头时造成的性能问题
  * 也避免了存同一文件尾部只能在房间关闭时才能保存头部的尴尬，容易丢失数据。
  */
+// FIXME:Rison: 使用队列可能更好维护
 
 /*! 本地函数，前置声明 */
-int janus_whiteboard_read_packet_from_file(void* dst, size_t len, FILE *src_file);
+int janus_whiteboard_read_packet_from_file_l(void* dst, size_t len, FILE *src_file);
+int janus_whiteboard_remove_packets_l(Pb__Package** packages, int stat_index, int len);
 int janus_whiteboard_parse_or_create_header_l(janus_whiteboard *whiteboard);
 int janus_whiteboard_scene_data_l(janus_whiteboard *whiteboard, int scene, Pb__Package** packages);
 
 /*! 从指定文件读取len字节到dst，
     @returns 正常读取返回 0，读取失败返回 -1 */
-int janus_whiteboard_read_packet_from_file(void* dst, size_t len, FILE *src_file) {
+int janus_whiteboard_read_packet_from_file_l(void* dst, size_t len, FILE *src_file) {
 	size_t ret = 0, total = len;
 	while(total > 0) {
 		ret = fread(dst + (len-total), sizeof(unsigned char), total, src_file);
@@ -42,6 +44,19 @@ int janus_whiteboard_read_packet_from_file(void* dst, size_t len, FILE *src_file
 			return -1;
 		}
 		total -= ret;
+	}
+	return 0;
+}
+
+/*! 由于比较多地方需要 free packets，独立成一个函数比较好管理. 需要对packets长度进行判断防止崩溃 */
+int janus_whiteboard_remove_packets_l(Pb__Package** packages, int stat_index, int len) {
+	int end_index = stat_index + len;
+	for(int index = stat_index; index < end_index; index++) {
+		Pb__Package **tmp_package = &packages[index];
+		if (*tmp_package) {
+			pb__package__free_unpacked(*tmp_package, NULL);
+		}
+		*tmp_package = NULL;
 	}
 	return 0;
 }
@@ -59,7 +74,7 @@ int janus_whiteboard_parse_or_create_header_l(janus_whiteboard *whiteboard) {
 	// 尝试解析数据到whiteboard->header，如果不成功则执行创建操作
 	if(fread(&header_len, sizeof(int), 1, whiteboard->header_file) == 1) {
 		char *buffer = g_malloc0(header_len);
-		if (janus_whiteboard_read_packet_from_file(buffer, header_len, whiteboard->header_file) < 0) {
+		if (janus_whiteboard_read_packet_from_file_l(buffer, header_len, whiteboard->header_file) < 0) {
 			JANUS_LOG(LOG_ERR, "Error happens when reading header packet from basefile: %s\n", whiteboard->filename);
 			g_free(buffer);
 			return -1;
@@ -175,44 +190,55 @@ janus_whiteboard *janus_whiteboard_create(const char *dir, const char *filename,
 	return whiteboard;
 }
 
+/*! 从指定的场景获取白板笔迹。先移到当前场景最接近keyframe附近开始查找，需要对clean以及keyframe做额外处理
+    @returns 成功获取返回 0， 获取失败返回 -1 */
 int janus_whiteboard_scene_data_l(janus_whiteboard *whiteboard, int scene, Pb__Package** packages) {
 	if (whiteboard == NULL || whiteboard->file == NULL)
 		return -1;
-	int packageLength = 0;
-	fseek(whiteboard->file, whiteboard->package_data_offset, SEEK_SET);
-	int packLen;
 
-	while(fread(&packLen, sizeof(int), 1, whiteboard->file) != 1) {
-		char *buffer = g_malloc0(packLen);
-		int temp = 0, tot = packLen;
-		while(tot > 0) {
-			temp = fread(buffer+packLen-tot, sizeof(char), tot, whiteboard->file);
-			if(temp <= 0) {
-				JANUS_LOG(LOG_ERR, "Error saving frame...\n");
-				fseek(whiteboard->file, 0, SEEK_END);
-				return -1;
-			}
-			tot -= temp;
-		}
-		Pb__Package *package = pb__package__unpack(NULL, packLen, buffer);
-		if (package == NULL)
-		{
-			JANUS_LOG(LOG_WARN, "parse whiteboard data error.");
+	// seek 到文件开头。FIXME:Rison 使用数组存起来 scene--->offset, 就不需要每次从头开始读取了
+	fseek(whiteboard->file, 0, SEEK_SET);
+	int pkt_len, out_len = 0;
+
+	while(fread(&pkt_len, sizeof(int), 1, whiteboard->file) != 1) {
+		char *buffer = g_malloc0(pkt_len);
+		if (janus_whiteboard_read_packet_from_file_l(buffer, pkt_len, whiteboard->file) < 0) {
+			JANUS_LOG(LOG_ERR, "Error happens when reading scene data packet from basefile: %s\n", whiteboard->filename);
 			fseek(whiteboard->file, 0, SEEK_END);
+			g_free(buffer);
 			return -1;
 		}
+
+		Pb__Package *package = pb__package__unpack(NULL, pkt_len, (const uint8_t*)buffer);
+		if (package == NULL) {
+			JANUS_LOG(LOG_WARN, "Parse whiteboard scene data error.");
+			fseek(whiteboard->file, 0, SEEK_END);
+			g_free(buffer);
+			return -1; //FIXME:Rison: break or continue?
+		}
+
 		if (package->scene == scene) {
 			if (package->type == KLPackageType_CleanDraw) {
-				packageLength = 0;
-			} else {
-				packages[packageLength] = package;
-				packageLength ++;
+				// 清屏指令，移除已经存在的包.
+				janus_whiteboard_remove_packets_l(packages, 0, out_len);
+				out_len = 0;
+			} else if (package->type == KLPackageType_KeyFrame) {
+				// 遇到关键帧，移除已经存在的包.
+				janus_whiteboard_remove_packets_l(packages, 0, out_len);
+				packages[0] = package;
+				out_len = 1;
+			} else if (package->type == KLPackageType_SceneData) {
+				// 是否过滤掉特殊指令
+				packages[out_len] = package;
+				out_len ++;
 			}
 		}
+
 		g_free(buffer);
 	}
+
 	fseek(whiteboard->file, 0, SEEK_END);
-	return packageLength;
+	return out_len;
 }
 
 uint8_t *janus_whiteboard_packed_data(Pb__Package **packages, int len, int *out_len) {
