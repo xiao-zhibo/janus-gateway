@@ -303,6 +303,7 @@ int janus_whiteboard_scene_data_l(janus_whiteboard *whiteboard, int scene, Pb__P
 
 int janus_whiteboard_on_receive_keyframe_l(janus_whiteboard *whiteboard, Pb__Package *package) {
 	// FIXME:Rison 定期保存头部，考虑关键帧的情况，以便加速查找？
+	// Save header
 	return 0;
 }
 
@@ -398,82 +399,13 @@ int janus_whiteboard_close(janus_whiteboard *whiteboard) {
 	if(whiteboard->file) {
 		fseek(whiteboard->file, 0L, SEEK_END);
 		size_t fsize = ftell(whiteboard->file);
-		fseek(whiteboard->file, 0L, SEEK_SET);
 		JANUS_LOG(LOG_WARN, "File is %zu bytes: %s\n", fsize, whiteboard->filename);
 	}
 	janus_mutex_unlock_nodebug(&whiteboard->mutex);
 	return 0;
 }
 
-int janus_whiteboard_write_with_header(janus_whiteboard *whiteboard) {
-	if(!whiteboard || !whiteboard->file)
-		return -1;
-
-	char path[1024];
-	char tmp_path[1024];
-	memset(path, 0, 1024);
-	if (whiteboard->dir != NULL) {
-		g_snprintf(path, 1024, "%s/%s", whiteboard->dir, whiteboard->filename);
-	} else {
-		g_snprintf(path, 1024, "%s", whiteboard->filename);
-	}
-	g_snprintf(tmp_path, 1024, "%s.tmp", path);//可以去掉
-	FILE *file = fopen(path, "wb");
-
-	int header_len = pb__header__get_packed_size(whiteboard->header);
-	uint8_t *header_buf = g_malloc0(header_len);
-	fwrite(&header_len, sizeof(uint), 1, whiteboard->file);
-	int temp = 0, tot = header_len;
-	while(tot > 0) {
-		temp = fwrite(header_buf+header_len-tot, sizeof(char), tot, whiteboard->file);
-		if(temp <= 0) {
-			JANUS_LOG(LOG_WARN, "Error saving frame...\n");
-			g_free(header_buf);
-			fclose(file);
-			return -2;
-		}
-		tot -= temp;
-	}
-	g_free(header_buf);
-
-	fseek(whiteboard->file, whiteboard->package_data_offset, SEEK_SET);
-	int len;
-	while(fread(&len, sizeof(int), 1, whiteboard->file) == 1) {
-		uint8_t *buf = g_malloc0(len);
-
-		temp = 0, tot = len;
-		while(tot > 0) {
-			temp = fread(buf+len-tot, sizeof(char), tot, whiteboard->file);
-			if(temp <= 0) {
-				JANUS_LOG(LOG_WARN, "Error reading frame...\n");
-				g_free(buf);
-				fclose(file);
-				return -3;
-			}
-			tot -= temp;
-		}
-
-		fwrite(&len, sizeof(int), 1, file);
-		temp = 0, tot = len;
-		while(tot > 0) {
-			temp = fwrite(buf+len-tot, sizeof(char), tot, file);
-			if(temp <= 0) {
-				JANUS_LOG(LOG_WARN, "Error saving frame...\n");
-				g_free(buf);
-				fclose(file);
-				return -4;
-			}
-			tot -= temp;
-		}
-
-		g_free(buf);
-	}
-	fclose(file);
-	fclose(whiteboard->file);
-	rename(tmp_path, path);// can be remove
-	return 0;
-}
-
+/*! 清理内部变量 */
 int janus_whiteboard_free(janus_whiteboard *whiteboard) {
 	if(!whiteboard)
 		return -1;
@@ -483,8 +415,9 @@ int janus_whiteboard_free(janus_whiteboard *whiteboard) {
 	whiteboard->dir = NULL;
 	g_free(whiteboard->filename);
 	whiteboard->filename = NULL;
-	janus_whiteboard_write_with_header(whiteboard);
-	// fclose(whiteboard->file);
+	fclose(whiteboard->header_file);
+	whiteboard->header_file = NULL;
+	fclose(whiteboard->file);
 	whiteboard->file = NULL;
 	janus_mutex_unlock_nodebug(&whiteboard->mutex);
 	g_free(whiteboard);
