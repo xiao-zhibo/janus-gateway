@@ -302,8 +302,26 @@ int janus_whiteboard_scene_data_l(janus_whiteboard *whiteboard, int scene, Pb__P
 }
 
 int janus_whiteboard_on_receive_keyframe_l(janus_whiteboard *whiteboard, Pb__Package *package) {
+	if (!whiteboard->file)
+		return -1;
+
+	if (whiteboard->header->n_keyframes >= MAX_PACKET_CAPACITY) {
+		JANUS_LOG(LOG_WARN, "Save keyframe fail. MAX_PACKET_CAPACITY is %d\n", MAX_PACKET_CAPACITY);
+		return -1;
+	}
+
+	Pb__KeyFrame *next = g_malloc0(sizeof(Pb__KeyFrame));
+	if (next == NULL) {
+		JANUS_LOG(LOG_WARN, "Save keyframe fail. Out of memory when allocating memory for new frame\n");
+		return -1;
+	}
+	fseek(whiteboard->file, 0, SEEK_END);
+	next->offset    = ftell(whiteboard->file);
+	next->timestamp = package->timestamp;
+	whiteboard->header->keyframes[whiteboard->header->n_keyframes] = next;
+	whiteboard->header->n_keyframes ++;
+
 	// FIXME:Rison 定期保存头部，考虑关键帧的情况，以便加速查找？
-	// Save header
 	return 0;
 }
 
@@ -371,13 +389,13 @@ int janus_whiteboard_save_package(janus_whiteboard *whiteboard, char *buffer, si
 
 	//if (package->type != KLPackageType_SceneData)// 此处无需考虑非scene data的情况，因为这种情况已在前面处理并返回
 
-	fseek(whiteboard->file, 0, SEEK_END);
 	if (package->type == KLPackageType_KeyFrame || package->type == KLPackageType_CleanDraw) {
 	// 额外处理关键帧
 		janus_whiteboard_on_receive_keyframe_l(whiteboard, package);
 	}
 
 	// 写入到文件记录保存
+	fseek(whiteboard->file, 0, SEEK_END);
 	size_t ret = fwrite(&length, sizeof(unsigned char), 1, whiteboard->file);
 	if (ret == 1) {
 	    ret = janus_whiteboard_write_packet_to_file_l((void*)buffer, length, whiteboard->file);
