@@ -27,10 +27,12 @@
 
 /*! 本地函数，前置声明 */
 int      janus_whiteboard_read_packet_from_file_l(void* dst, size_t len, FILE *src_file);
+int      janus_whiteboard_write_packet_to_file_l(void* src, size_t len, FILE *dst_file);
 int      janus_whiteboard_remove_packets_l(Pb__Package** packages, int stat_index, int len);
 int      janus_whiteboard_parse_or_create_header_l(janus_whiteboard *whiteboard);
 uint8_t *janus_whiteboard_packed_data_l(Pb__Package **packages, int len, int *out_len);
 int      janus_whiteboard_scene_data_l(janus_whiteboard *whiteboard, int scene, Pb__Package** packages);
+int      janus_whiteboard_on_receive_keyframe_l(janus_whiteboard *whiteboard, Pb__Package *package);
 
 /*! 从指定文件读取len字节到dst，
     @returns 正常读取返回 0，读取失败返回 -1 */
@@ -42,6 +44,23 @@ int janus_whiteboard_read_packet_from_file_l(void* dst, size_t len, FILE *src_fi
 			return 0;
 		} else if (ret <= 0) {
 			JANUS_LOG(LOG_ERR, "Error reading packet...\n");
+			return -1;
+		}
+		total -= ret;
+	}
+	return 0;
+}
+
+/*! 写入len字节到目标文件 
+    @returns 正常写入返回0， 异常返回 -1 */
+int janus_whiteboard_write_packet_to_file_l(void* src, size_t len, FILE *dst_file) {
+	size_t ret = 0, total = len;
+	while (total > 0) {
+		ret = fwrite(src + (len-total), sizeof(unsigned char), total, dst_file);
+		if (ret >= total) {
+			return 0;
+		} else if (ret <= 0) {
+			JANUS_LOG(LOG_ERR, "Error saving packet...\n");//应该表明写入了多少
 			return -1;
 		}
 		total -= ret;
@@ -252,7 +271,7 @@ int janus_whiteboard_scene_data_l(janus_whiteboard *whiteboard, int scene, Pb__P
 
 		Pb__Package *package = pb__package__unpack(NULL, pkt_len, (const uint8_t*)buffer);
 		if (package == NULL) {
-			JANUS_LOG(LOG_WARN, "Parse whiteboard scene data error.");
+			JANUS_LOG(LOG_WARN, "Parse whiteboard scene data error.\n");
 			fseek(whiteboard->file, 0, SEEK_END);
 			g_free(buffer);
 			return -1; //FIXME:Rison: break or continue?
@@ -282,76 +301,92 @@ int janus_whiteboard_scene_data_l(janus_whiteboard *whiteboard, int scene, Pb__P
 	return out_len;
 }
 
-int janus_whiteboard_add_keyframe(janus_whiteboard *whiteboard) {
+int janus_whiteboard_on_receive_keyframe_l(janus_whiteboard *whiteboard, Pb__Package *package) {
+	// FIXME:Rison 定期保存头部，考虑关键帧的情况，以便加速查找？
 	return 0;
 }
 
-int janus_whiteboard_save_package(janus_whiteboard *whiteboard, char *buffer, uint16_t length, uint8_t **out) {
-	if(!whiteboard)
+/*! 核心函数
+    本函数尝试以白板数据进行解包，对 场景切换，获取场景数据进行额外处理。其余情况正常保存。
+    //FIXME:Rison 是否需要保存场景切换这些包，因为回访也需要用到?
+    @returns 保存成功返回非负数。如果有数据返回则表示返回数据的长度，*/
+int janus_whiteboard_save_package(janus_whiteboard *whiteboard, char *buffer, size_t length, uint8_t **out) {
+	if(!whiteboard) {
+		JANUS_LOG(LOG_ERR, "Error saving frame. Whiteboard is empty\n");
 		return -1;
-		JANUS_LOG(LOG_WARN, "Error saving frame. -1\n");
-	janus_mutex_lock_nodebug(&whiteboard->mutex);
-	if(!buffer || length < 1) {
-		janus_mutex_unlock_nodebug(&whiteboard->mutex);
-		JANUS_LOG(LOG_WARN, "Error saving frame. -2\n");
-		return -2;
 	}
+	if(!buffer || length < 1 || !out) {
+		JANUS_LOG(LOG_WARN, "Error saving frame. Invalid params\n");
+		return -1;
+	}
+
+	janus_mutex_lock_nodebug(&whiteboard->mutex);
 	if(!whiteboard->file) {
 		janus_mutex_unlock_nodebug(&whiteboard->mutex);
-		JANUS_LOG(LOG_WARN, "Error saving frame. -3\n");
-		return -3;
+		JANUS_LOG(LOG_WARN, "Error saving frame. whiteboard->file is empty\n");
+		return -1;
 	}
-	Pb__Package *package = pb__package__unpack(NULL, length, buffer);
-	if (package == NULL)
-	{
-		JANUS_LOG(LOG_WARN, "parse whiteboard data error. -4");
+
+	Pb__Package *package = pb__package__unpack(NULL, length, (const uint8_t*)buffer);
+	if (package == NULL) {
+		JANUS_LOG(LOG_WARN, "Error saving frame. Invalid whiteboard packet\n");
 		janus_mutex_unlock_nodebug(&whiteboard->mutex);
-		return -4;
+		return -1;
 	}
 
 	if (package->type == KLPackageType_SwitchScene && package->scene != whiteboard->scene) {
-		whiteboard->scene = package->scene;
-		for (int i = 0; i < whiteboard->scene_package_num; i ++) {
-			pb__package__free_unpacked(whiteboard->scene_packages[i], NULL);
-			whiteboard->scene_packages[i] = NULL;
+	// 切换白板场景
+		if (package->scene == whiteboard->scene) {
+			JANUS_LOG(LOG_WARN, "Get a request to switch scene, but currenttly the whiteboard is on the target %d scene\n", package->scene);
+			return 0;
 		}
+		whiteboard->scene = package->scene;
+		janus_whiteboard_remove_packets_l(whiteboard->scene_packages, 0, whiteboard->scene_package_num);
 		whiteboard->scene_package_num = janus_whiteboard_scene_data_l(whiteboard, whiteboard->scene, whiteboard->scene_packages);
-		if (whiteboard->scene_package_num <= 0)
-			JANUS_LOG(LOG_WARN, "save whiteboard package num : %d", whiteboard->scene_package_num);
+		if (whiteboard->scene_package_num < 0) {
+			JANUS_LOG(LOG_WARN, "Something wrong happens when fetching scene data with reselt %d\n", whiteboard->scene_package_num);
+			whiteboard->scene_package_num = 0;
+		}
 	} else if (package->type == KLPackageType_SceneData) {
-		int size = 0;
-		uint8_t *buf;
+	// 请求指定场景的白板数据
+		int out_size = 0;
 		if ( package->scene == whiteboard->scene || package->scene == -1 ) {
-			*out = janus_whiteboard_packed_data_l(whiteboard->scene_packages, whiteboard->scene_package_num, &size);
+			// 当前场景
+			*out = janus_whiteboard_packed_data_l(whiteboard->scene_packages, whiteboard->scene_package_num, &out_size);
 		} else if (package->scene >= 0) {
-			Pb__Package **packages = g_malloc0(sizeof(Pb__Package*) * 10000);
+			// 其他场景
+			Pb__Package **packages = g_malloc0(sizeof(Pb__Package*) * MAX_PACKET_CAPACITY);
 			int num = janus_whiteboard_scene_data_l(whiteboard, whiteboard->scene, packages);
-			*out = janus_whiteboard_packed_data_l(packages, num, &size);
+			*out = janus_whiteboard_packed_data_l(packages, num, &out_size);
 			for (int i = 0; i < num; i ++) {
 				pb__package__free_unpacked(packages[i], NULL);
 			}
 			g_free(packages);
 		}
 		janus_mutex_unlock_nodebug(&whiteboard->mutex);
-		JANUS_LOG(LOG_WARN, "get frame: %d\n", size);
-		return size;
+		JANUS_LOG(LOG_VERB, "Get scene data with length: %d\n", out_size);
+		return out_size;
 	}
 
-	if (package->type != KLPackageType_SceneData) {
-		/* Save packet on file */
-		fwrite(&length, sizeof(uint), 1, whiteboard->file);
-		int temp = 0, tot = length;
-		while(tot > 0) {
-			temp = fwrite(buffer+length-tot, sizeof(char), tot, whiteboard->file);
-			if(temp <= 0) {
-				JANUS_LOG(LOG_WARN, "Error saving frame: -5\n");
-				janus_mutex_unlock_nodebug(&whiteboard->mutex);
-				return -5;
-			}
-			tot -= temp;
-		}
+	//if (package->type != KLPackageType_SceneData)// 此处无需考虑非scene data的情况，因为这种情况已在前面处理并返回
+
+	fseek(whiteboard->file, 0, SEEK_END);
+	if (package->type == KLPackageType_KeyFrame || package->type == KLPackageType_CleanDraw) {
+	// 额外处理关键帧
+		janus_whiteboard_on_receive_keyframe_l(whiteboard, package);
 	}
-	/* Done */
+
+	// 写入到文件记录保存
+	size_t ret = fwrite(&length, sizeof(unsigned char), 1, whiteboard->file);
+	if (ret == 1) {
+	    ret = janus_whiteboard_write_packet_to_file_l((void*)buffer, length, whiteboard->file);
+	    ret = (ret==0) ? 1 : 0;//由于以上函数封装的关系，此处需要对返回的结果处理下 
+	}
+	if (ret == 0) {
+		JANUS_LOG(LOG_ERR, "Error happens when saving scene data packet to basefile: %s\n", whiteboard->filename);
+	}
+	
+	pb__package__free_unpacked(package, NULL);
 	janus_mutex_unlock_nodebug(&whiteboard->mutex);
 	return 0;
 }
