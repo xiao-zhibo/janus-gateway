@@ -26,10 +26,11 @@
 // FIXME:Rison: 使用队列可能更好维护
 
 /*! 本地函数，前置声明 */
-int janus_whiteboard_read_packet_from_file_l(void* dst, size_t len, FILE *src_file);
-int janus_whiteboard_remove_packets_l(Pb__Package** packages, int stat_index, int len);
-int janus_whiteboard_parse_or_create_header_l(janus_whiteboard *whiteboard);
-int janus_whiteboard_scene_data_l(janus_whiteboard *whiteboard, int scene, Pb__Package** packages);
+int      janus_whiteboard_read_packet_from_file_l(void* dst, size_t len, FILE *src_file);
+int      janus_whiteboard_remove_packets_l(Pb__Package** packages, int stat_index, int len);
+int      janus_whiteboard_parse_or_create_header_l(janus_whiteboard *whiteboard);
+uint8_t *janus_whiteboard_packed_data_l(Pb__Package **packages, int len, int *out_len);
+int      janus_whiteboard_scene_data_l(janus_whiteboard *whiteboard, int scene, Pb__Package** packages);
 
 /*! 从指定文件读取len字节到dst，
     @returns 正常读取返回 0，读取失败返回 -1 */
@@ -190,6 +191,46 @@ janus_whiteboard *janus_whiteboard_create(const char *dir, const char *filename,
 	return whiteboard;
 }
 
+/*! 将所有的指令集合到一个pkp，再打包为 buffer 二进制数据返回给客户端 */
+uint8_t *janus_whiteboard_packed_data_l(Pb__Package **packages, int len, int *out_len) {
+	if (packages == NULL || len <= 0 || out_len == NULL) 
+		return NULL;
+
+	int total_cmd_num = 0;
+	for (int i = 0; i < len; i ++) {
+		total_cmd_num += packages[i]->n_cmd;
+	}
+
+	Pb__Package out_pkg;
+	out_pkg       = *packages[0];
+	out_pkg.n_cmd = total_cmd_num;
+	out_pkg.cmd   = g_malloc0(sizeof(Pb__Command) * total_cmd_num);
+
+	size_t cmd_index = 0;
+	for (int i = 0; i < len; i ++) {
+		Pb__Command **cmd = packages[i]->cmd;
+		if (packages[i]->n_cmd == 0)
+			continue;
+		for (size_t j = 0; j < packages[i]->n_cmd; j ++) {
+			out_pkg.cmd[cmd_index++] = cmd[j];
+		}
+	}
+
+	*out_len = pb__package__get_packed_size(&out_pkg);
+	uint8_t *out_buf = g_malloc0(*out_len);
+	pb__package__pack(&out_pkg, out_buf);
+
+	g_free(out_pkg.cmd);
+	return out_buf;
+}
+
+/*! 用于返回当前场景的白板数据。由于页面切换时，可能比较多客户端调用获取场景数据接口，
+    如果调用 janus_whiteboard_scene_data_l 读取文本文件会造成效率问题。*/
+uint8_t *janus_whiteboard_current_scene_data(janus_whiteboard *whiteboard, int *size) {
+	uint8_t *out_buf = janus_whiteboard_packed_data_l(whiteboard->scene_packages, whiteboard->scene_package_num, size);
+	return out_buf;
+}
+
 /*! 从指定的场景获取白板笔迹。先移到当前场景最接近keyframe附近开始查找，需要对clean以及keyframe做额外处理
     @returns 成功获取返回 0， 获取失败返回 -1 */
 int janus_whiteboard_scene_data_l(janus_whiteboard *whiteboard, int scene, Pb__Package** packages) {
@@ -241,32 +282,6 @@ int janus_whiteboard_scene_data_l(janus_whiteboard *whiteboard, int scene, Pb__P
 	return out_len;
 }
 
-uint8_t *janus_whiteboard_packed_data(Pb__Package **packages, int len, int *out_len) {
-	if (packages == NULL || len <= 0) 
-		return -1;
-
-	int cmd_num = 0;
-	for (int i = 0; i < len; i ++) {
-		cmd_num += packages[i]->n_cmd;
-	}
-	Pb__Package package;
-	package = *packages[0];
-	package.n_cmd = cmd_num;
-	package.cmd = g_malloc0(sizeof(Pb__Command) * cmd_num);
-	int k = 0;
-	for (int i = 0; i < len; i ++) {
-		Pb__Command **cmd = packages[i]->cmd;
-		for (int j = 0; j < packages[i]->n_cmd; j ++) {
-			package.cmd[k++] = cmd[j];
-		}
-	}
-	*out_len = pb__package__get_packed_size(&package);
-	uint8_t *buffer = g_malloc0(*out_len);
-	pb__package__pack(&package, buffer);
-	g_free(package.cmd);
-	return buffer;
-}
-
 int janus_whiteboard_add_keyframe(janus_whiteboard *whiteboard) {
 	return 0;
 }
@@ -307,11 +322,11 @@ int janus_whiteboard_save_package(janus_whiteboard *whiteboard, char *buffer, ui
 		int size = 0;
 		uint8_t *buf;
 		if ( package->scene == whiteboard->scene || package->scene == -1 ) {
-			*out = janus_whiteboard_packed_data(whiteboard->scene_packages, whiteboard->scene_package_num, &size);
+			*out = janus_whiteboard_packed_data_l(whiteboard->scene_packages, whiteboard->scene_package_num, &size);
 		} else if (package->scene >= 0) {
 			Pb__Package **packages = g_malloc0(sizeof(Pb__Package*) * 10000);
 			int num = janus_whiteboard_scene_data_l(whiteboard, whiteboard->scene, packages);
-			*out = janus_whiteboard_packed_data(packages, num, &size);
+			*out = janus_whiteboard_packed_data_l(packages, num, &size);
 			for (int i = 0; i < num; i ++) {
 				pb__package__free_unpacked(packages[i], NULL);
 			}
@@ -339,11 +354,6 @@ int janus_whiteboard_save_package(janus_whiteboard *whiteboard, char *buffer, ui
 	/* Done */
 	janus_mutex_unlock_nodebug(&whiteboard->mutex);
 	return 0;
-}
-
-uint8_t *janus_whiteboard_current_scene_data(janus_whiteboard *whiteboard, int *size) {
-	uint8_t *out = janus_whiteboard_packed_data(whiteboard->scene_packages, whiteboard->scene_package_num, size);
-	return out;
 }
 
 int janus_whiteboard_close(janus_whiteboard *whiteboard) {
