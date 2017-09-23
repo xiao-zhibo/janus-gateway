@@ -220,8 +220,8 @@ uint8_t *janus_whiteboard_packed_data_l(Pb__Package **packages, int len, int *ou
 		total_cmd_num += packages[i]->n_cmd;
 	}
 
-	Pb__Package out_pkg;
-	out_pkg       = *packages[0];
+	Pb__Package out_pkg = *packages[0];
+	out_pkg.type  = KLPackageType_DrawCommand;
 	out_pkg.n_cmd = total_cmd_num;
 	out_pkg.cmd   = g_malloc0(sizeof(Pb__Command) * total_cmd_num);
 
@@ -375,7 +375,7 @@ int janus_whiteboard_save_package(janus_whiteboard *whiteboard, char *buffer, si
 		} else if (package->scene >= 0) {
 			// 其他场景
 			Pb__Package **packages = g_malloc0(sizeof(Pb__Package*) * MAX_PACKET_CAPACITY);
-			int num = janus_whiteboard_scene_data_l(whiteboard, whiteboard->scene, packages);
+			int num = janus_whiteboard_scene_data_l(whiteboard, package->scene, packages);
 			*out = janus_whiteboard_packed_data_l(packages, num, &out_size);
 			for (int i = 0; i < num; i ++) {
 				pb__package__free_unpacked(packages[i], NULL);
