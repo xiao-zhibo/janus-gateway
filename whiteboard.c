@@ -251,16 +251,16 @@ uint8_t *janus_whiteboard_current_scene_data(janus_whiteboard *whiteboard, int *
 }
 
 /*! 从指定的场景获取白板笔迹。先移到当前场景最接近keyframe附近开始查找，需要对clean以及keyframe做额外处理
-    @returns 成功获取返回 0， 获取失败返回 -1 */
+    @returns 成功获取返回 pkt 的数目， 获取失败返回 -1 */
 int janus_whiteboard_scene_data_l(janus_whiteboard *whiteboard, int scene, Pb__Package** packages) {
 	if (whiteboard == NULL || whiteboard->file == NULL)
 		return -1;
 
 	// seek 到文件开头。FIXME:Rison 使用数组存起来 scene--->offset, 就不需要每次从头开始读取了
 	fseek(whiteboard->file, 0, SEEK_SET);
-	int pkt_len, out_len = 0;
+	size_t pkt_len, out_len = 0;
 
-	while(fread(&pkt_len, sizeof(int), 1, whiteboard->file) != 1) {
+	while(fread(&pkt_len, sizeof(size_t), 1, whiteboard->file) == 1) {
 		char *buffer = g_malloc0(pkt_len);
 		if (janus_whiteboard_read_packet_from_file_l(buffer, pkt_len, whiteboard->file) < 0) {
 			JANUS_LOG(LOG_ERR, "Error happens when reading scene data packet from basefile: %s\n", whiteboard->filename);
@@ -287,8 +287,8 @@ int janus_whiteboard_scene_data_l(janus_whiteboard *whiteboard, int scene, Pb__P
 				janus_whiteboard_remove_packets_l(packages, 0, out_len);
 				packages[0] = package;
 				out_len = 1;
-			} else if (package->type == KLPackageType_SceneData) {
-				// 是否过滤掉特殊指令
+			} else if (package->type != KLPackageType_SceneData) {
+				// 过滤掉特殊指令
 				packages[out_len] = package;
 				out_len ++;
 			}
@@ -396,7 +396,7 @@ int janus_whiteboard_save_package(janus_whiteboard *whiteboard, char *buffer, si
 
 	// 写入到文件记录保存
 	fseek(whiteboard->file, 0, SEEK_END);
-	size_t ret = fwrite(&length, sizeof(unsigned char), 1, whiteboard->file);
+	size_t ret = fwrite(&length, sizeof(size_t), 1, whiteboard->file);
 	if (ret == 1) {
 	    ret = janus_whiteboard_write_packet_to_file_l((void*)buffer, length, whiteboard->file);
 	    ret = (ret==0) ? 1 : 0;//由于以上函数封装的关系，此处需要对返回的结果处理下 
