@@ -196,8 +196,11 @@ janus_whiteboard *janus_whiteboard_create(const char *dir, const char *filename,
 		whiteboard->dir = g_strdup(dir);
 	whiteboard->filename = g_strdup(filename);
 
+    if (janus_whiteboard_parse_or_create_header_l(whiteboard) < 0) {
+    	    JANUS_LOG(LOG_ERR, "Parse or create header error.\n");
+    	    return NULL;
+    }
 	janus_mutex_init(&whiteboard->mutex);
-    janus_whiteboard_parse_or_create_header_l(whiteboard);
 
 	whiteboard->scene_packages = g_malloc0(sizeof(Pb__Package*) * MAX_PACKET_CAPACITY);
 	if (whiteboard->scene_packages) {

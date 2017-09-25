@@ -44,6 +44,7 @@ typedef struct janus_whiteboard {
 	int scene_package_num;
 	int package_data_offset;
 	
+	/*! \brief header以后是得写文件的，不应一直存内存，因为可能会比较大 */
 	Pb__Header *header;
 	/*! \brief Mutex to lock/unlock this whiteboard instance */ 
 	janus_mutex mutex;
@@ -69,7 +70,7 @@ janus_whiteboard *janus_whiteboard_create(const char *dir, const char *filename,
  * @param[in] buffer The frame data to save
  * @param[in] length The frame data length
  * @returns 0 in case of success, a negative integer otherwise */
-int janus_whiteboard_save_package(janus_whiteboard *whiteboard, char *buffer, uint16_t length, uint8_t **out);
+int janus_whiteboard_save_package(janus_whiteboard *whiteboard, char *buffer, size_t length, uint8_t **out);
 
 uint8_t *janus_whiteboard_current_scene_data(janus_whiteboard *whiteboard, int *size);
 /*! \brief Close the whiteboard
