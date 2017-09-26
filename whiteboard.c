@@ -290,8 +290,9 @@ int janus_whiteboard_scene_data_l(janus_whiteboard *whiteboard, int scene, Pb__P
 				janus_whiteboard_remove_packets_l(packages, 0, out_len);
 				packages[0] = package;
 				out_len = 1;
-			} else if (package->type != KLPackageType_SceneData) {
-				// 过滤掉特殊指令
+			} else if (package->type != KLPackageType_SceneData
+			        && package->type != KLPackageType_SwitchScene) {
+				// FIXME:Rison 有新的指令过来需要考虑这里. 过滤掉特殊指令
 				packages[out_len] = package;
 				out_len ++;
 			}
@@ -356,10 +357,11 @@ int janus_whiteboard_save_package(janus_whiteboard *whiteboard, char *buffer, si
 		return -1;
 	}
 
-	if (package->type == KLPackageType_SwitchScene && package->scene != whiteboard->scene) {
+	if (package->type == KLPackageType_SwitchScene) {
 	// 切换白板场景
 		if (package->scene == whiteboard->scene) {
 			JANUS_LOG(LOG_WARN, "Get a request to switch scene, but currenttly the whiteboard is on the target %d scene\n", package->scene);
+		    janus_mutex_unlock_nodebug(&whiteboard->mutex);
 			return 0;
 		}
 		whiteboard->scene = package->scene;
@@ -408,7 +410,15 @@ int janus_whiteboard_save_package(janus_whiteboard *whiteboard, char *buffer, si
 		JANUS_LOG(LOG_ERR, "Error happens when saving scene data packet to basefile: %s\n", whiteboard->filename);
 	}
 	
-	pb__package__free_unpacked(package, NULL);
+	// 保存数据到当前场景（内存），以便快速处理KLPackageType_SceneData指令
+	if (package->scene == whiteboard->scene && package->type != KLPackageType_SwitchScene) {
+		int cur_frame_index = whiteboard->scene_package_num;
+		whiteboard->scene_packages[cur_frame_index] = package;
+		whiteboard->scene_package_num ++;
+	} else {
+		pb__package__free_unpacked(package, NULL);
+	}
+
 	janus_mutex_unlock_nodebug(&whiteboard->mutex);
 	return 0;
 }
