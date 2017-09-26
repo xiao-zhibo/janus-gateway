@@ -30,6 +30,7 @@ int      janus_whiteboard_read_packet_from_file_l(void* dst, size_t len, FILE *s
 int      janus_whiteboard_write_packet_to_file_l(void* src, size_t len, FILE *dst_file);
 int      janus_whiteboard_remove_packets_l(Pb__Package** packages, int stat_index, int len);
 int      janus_whiteboard_parse_or_create_header_l(janus_whiteboard *whiteboard);
+void     janus_whiteboard_add_pkt_to_packages_l(Pb__Package** packages, int* packages_len, const Pb__Package* dst_pkg);
 uint8_t *janus_whiteboard_packed_data_l(Pb__Package **packages, int len, int *out_len);
 int      janus_whiteboard_scene_data_l(janus_whiteboard *whiteboard, int scene, Pb__Package** packages);
 int      janus_whiteboard_on_receive_keyframe_l(janus_whiteboard *whiteboard, Pb__Package *package);
@@ -253,6 +254,27 @@ uint8_t *janus_whiteboard_current_scene_data(janus_whiteboard *whiteboard, int *
 	return out_buf;
 }
 
+void janus_whiteboard_add_pkt_to_packages_l(Pb__Package** packages, int* packages_len, const Pb__Package* dst_pkg) {
+	if (packages == NULL || packages_len == NULL || dst_pkg == NULL)
+		return;
+
+	if (dst_pkg->type == KLPackageType_CleanDraw) {
+	    // 清屏指令，移除已经存在的包.
+	    janus_whiteboard_remove_packets_l(packages, 0, *packages_len);
+	    *packages_len = 0;
+    } else if (dst_pkg->type == KLPackageType_KeyFrame) {
+		// 遇到关键帧，移除已经存在的包.
+		janus_whiteboard_remove_packets_l(packages, 0, *packages_len);
+		packages[0] = dst_pkg;
+		*packages_len = 1;
+	} else if (dst_pkg->type != KLPackageType_SceneData
+		    && dst_pkg->type != KLPackageType_SwitchScene) {
+		// FIXME:Rison 有新的指令过来需要考虑这里. 过滤掉特殊指令
+		packages[*packages_len] = dst_pkg;
+		(*packages_len) ++;
+	}
+}
+
 /*! 从指定的场景获取白板笔迹。先移到当前场景最接近keyframe附近开始查找，需要对clean以及keyframe做额外处理
     @returns 成功获取返回 pkt 的数目， 获取失败返回 -1 */
 int janus_whiteboard_scene_data_l(janus_whiteboard *whiteboard, int scene, Pb__Package** packages) {
@@ -281,21 +303,9 @@ int janus_whiteboard_scene_data_l(janus_whiteboard *whiteboard, int scene, Pb__P
 		}
 
 		if (package->scene == scene) {
-			if (package->type == KLPackageType_CleanDraw) {
-				// 清屏指令，移除已经存在的包.
-				janus_whiteboard_remove_packets_l(packages, 0, out_len);
-				out_len = 0;
-			} else if (package->type == KLPackageType_KeyFrame) {
-				// 遇到关键帧，移除已经存在的包.
-				janus_whiteboard_remove_packets_l(packages, 0, out_len);
-				packages[0] = package;
-				out_len = 1;
-			} else if (package->type != KLPackageType_SceneData
-			        && package->type != KLPackageType_SwitchScene) {
-				// FIXME:Rison 有新的指令过来需要考虑这里. 过滤掉特殊指令
-				packages[out_len] = package;
-				out_len ++;
-			}
+			janus_whiteboard_add_pkt_to_packages_l(packages, &out_len, package);
+		} else {
+			pb__package__free_unpacked(package, NULL);
 		}
 
 		g_free(buffer);
@@ -411,10 +421,8 @@ int janus_whiteboard_save_package(janus_whiteboard *whiteboard, char *buffer, si
 	}
 	
 	// 保存数据到当前场景（内存），以便快速处理KLPackageType_SceneData指令
-	if (package->scene == whiteboard->scene && package->type != KLPackageType_SwitchScene) {
-		int cur_frame_index = whiteboard->scene_package_num;
-		whiteboard->scene_packages[cur_frame_index] = package;
-		whiteboard->scene_package_num ++;
+	if (package->scene == whiteboard->scene) {
+		janus_whiteboard_add_pkt_to_packages_l(whiteboard->scene_packages, &(whiteboard->scene_package_num), package);
 	} else {
 		pb__package__free_unpacked(package, NULL);
 	}
