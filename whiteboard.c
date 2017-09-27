@@ -134,7 +134,6 @@ janus_whiteboard *janus_whiteboard_create(const char *dir, const char *filename,
 	whiteboard->filename = NULL;
 	whiteboard->header_file = NULL;
 	whiteboard->file = NULL;
-	whiteboard->package_data_offset = 0;
 	
 	/* Check if this directory exists, and create it if needed */
 	if(dir != NULL) {

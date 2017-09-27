@@ -43,7 +43,6 @@ typedef struct janus_whiteboard {
 	int scene;
 	Pb__Package **scene_packages;
 	int scene_package_num;
-	int package_data_offset;
 	
 	/*! \brief header以后是得写文件的，不应一直存内存，因为可能会比较大 */
 	Pb__Header *header;
