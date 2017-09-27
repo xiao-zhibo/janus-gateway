@@ -43,6 +43,9 @@ typedef struct janus_whiteboard {
 	int scene;
 	Pb__Package **scene_packages;
 	int scene_package_num;
+	/*! 坐标存scene, 指针指向相应的keyframe。用于快速定位筛选出符合的场景数据给回前端 */
+	Pb__KeyFrame **scene_keyframes;
+	int scene_keyframe_maxnum;
 	
 	/*! \brief header以后是得写文件的，不应一直存内存，因为可能会比较大 */
 	Pb__Header *header;

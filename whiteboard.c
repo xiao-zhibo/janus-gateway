@@ -117,6 +117,13 @@ int janus_whiteboard_parse_or_create_header_l(janus_whiteboard *whiteboard) {
 	whiteboard->header->keyframes[0]->offset = 0;
 	whiteboard->header->keyframes[0]->timestamp = 0;
 
+	whiteboard->scene_keyframes    = g_malloc0(sizeof(Pb__KeyFrame*) * MAX_PACKET_CAPACITY);//check here
+	whiteboard->scene_keyframes[0] = g_malloc0(sizeof(Pb__KeyFrame));
+	pb__key_frame__init(whiteboard->scene_keyframes[0]);
+	whiteboard->scene_keyframes[0]->offset = 0;
+	whiteboard->scene_keyframes[0]->timestamp = 0;
+	whiteboard->scene_keyframe_maxnum = 1;
+
 	// FIXME:Rison 需要有一个包指向offset为0处，否则开头的部分将会被遗漏
 
 	return 0;
@@ -283,8 +290,15 @@ int janus_whiteboard_scene_data_l(janus_whiteboard *whiteboard, int scene, Pb__P
 	if (whiteboard == NULL || whiteboard->file == NULL)
 		return -1;
 
+	int package_data_offset = 0;
+	if (scene < whiteboard->scene_keyframe_maxnum) {
+		Pb__KeyFrame *target_keyframe = whiteboard->scene_keyframes[scene];
+		if (target_keyframe != NULL) {
+			package_data_offset = target_keyframe->offset;
+		}
+	}
 	// seek 到文件开头。FIXME:Rison 使用数组存起来 scene--->offset, 就不需要每次从头开始读取了
-	fseek(whiteboard->file, 0, SEEK_SET);
+	fseek(whiteboard->file, package_data_offset, SEEK_SET);
 	size_t pkt_len, out_len = 0;
 
 	while(fread(&pkt_len, sizeof(size_t), 1, whiteboard->file) == 1) {
@@ -318,11 +332,11 @@ int janus_whiteboard_scene_data_l(janus_whiteboard *whiteboard, int scene, Pb__P
 }
 
 int janus_whiteboard_on_receive_keyframe_l(janus_whiteboard *whiteboard, Pb__Package *package) {
-	if (!whiteboard->file)
+	if (!whiteboard->file || !package)
 		return -1;
 
-	if (whiteboard->header->n_keyframes >= MAX_PACKET_CAPACITY) {
-		JANUS_LOG(LOG_WARN, "Save keyframe fail. MAX_PACKET_CAPACITY is %d\n", MAX_PACKET_CAPACITY);
+	if (package->scene < 0 || package->scene >= MAX_PACKET_CAPACITY) {
+		JANUS_LOG(LOG_WARN, "Save keyframe fail. current is %d, MAX_PACKET_CAPACITY is %d\n", package->scene, MAX_PACKET_CAPACITY);
 		return -1;
 	}
 
@@ -332,10 +346,19 @@ int janus_whiteboard_on_receive_keyframe_l(janus_whiteboard *whiteboard, Pb__Pac
 		return -1;
 	}
 	fseek(whiteboard->file, 0, SEEK_END);
+	pb__key_frame__init(next);
 	next->offset    = ftell(whiteboard->file);
 	next->timestamp = package->timestamp;
-	whiteboard->header->keyframes[whiteboard->header->n_keyframes] = next;
-	whiteboard->header->n_keyframes ++;
+
+	int scene_index = package->scene;
+	Pb__KeyFrame **target_keyframe = &whiteboard->scene_keyframes[scene_index];
+	if (*target_keyframe != NULL) {
+		g_free(*target_keyframe);
+	}
+	*target_keyframe = next;
+	if (scene_index > whiteboard->scene_keyframe_maxnum) {
+	    whiteboard->scene_keyframe_maxnum = scene_index + 1;//scene 从 0 开始
+	}
 
 	// FIXME:Rison 定期保存头部，考虑关键帧的情况，以便加速查找？
 	return 0;
@@ -471,6 +494,15 @@ int janus_whiteboard_free(janus_whiteboard *whiteboard) {
 	whiteboard->header_file = NULL;
 	fclose(whiteboard->file);
 	whiteboard->file = NULL;
+	/*! 清理用于快速定位的关键帧索引 */
+	for (int start_index = 0; start_index < whiteboard->scene_keyframe_maxnum; start_index++) {
+		if (whiteboard->scene_keyframes[start_index] != NULL) {
+			g_free(whiteboard->scene_keyframes[start_index]);
+			whiteboard->scene_keyframes[start_index] = NULL;
+		}
+	}
+	g_free(whiteboard->scene_keyframes);
+
 	janus_mutex_unlock_nodebug(&whiteboard->mutex);
 	g_free(whiteboard);
 	return 0;
