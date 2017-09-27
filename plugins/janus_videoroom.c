@@ -2855,12 +2855,25 @@ void janus_videoroom_incoming_data(janus_plugin_session *handle, char *buf, int 
 	*(text+len) = '\0';
 	/* Save the message if we're recording */
 	int ret = janus_recorder_save_frame(participant->drc, text, strlen(text));
-	char *out_buf;
-	ret = janus_whiteboard_save_package(participant->room->whiteboard, buf, len, &out_buf);
-	JANUS_LOG(LOG_WARN, "Got a DataChannel message (%d bytes) to forward: %d\n", len, ret);
+	/* 就目前的情况下，data数据就是我们需要的白板数据，保存之
+	   @returns wret 为白板数据请求封装。前段有部分特殊指令需要返回关键帧或普通的指令帧 */
+	janus_whiteboard_result wret = janus_whiteboard_save_package(participant->room->whiteboard, buf, len);
+	JANUS_LOG(LOG_INFO, "Got a DataChannel message (%d bytes) to forward, result: %d\n", wret.keyframe_len+wret.command_len, wret.ret);
 	
-	if (ret > 0) {
-		janus_videoroom_relay_whiteboard_packet(participant, out_buf, ret);
+	/* ret 大于0时表示发起者发出了指令，将有数据需要返回. */
+	if (wret.ret > 0) {
+		/* 返回关键帧 */
+		if (wret.keyframe_len > 0 && wret.keyframe_buf != NULL) {
+		    janus_videoroom_relay_whiteboard_packet(participant, wret.keyframe_buf, wret.keyframe_len);
+		    g_free(wret.keyframe_buf);
+		    wret.keyframe_buf = NULL;
+		}
+		/* 返回指令帧 */
+		if (wret.command_len > 0 && wret.command_buf != NULL) {
+			janus_videoroom_relay_whiteboard_packet(participant, wret.command_buf, wret.command_len);
+			g_free(wret.command_buf);
+			wret.command_buf = NULL;
+		}
 	} else {
 		/* Relay to all listeners */
 		janus_videoroom_data_packet packet;

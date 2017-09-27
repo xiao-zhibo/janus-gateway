@@ -27,6 +27,7 @@ typedef enum {
     KLPackageType_KeyFrame
 } KLDataPackageType;
 
+#define MAX_PACKET_CAPACITY 10000
 
 /*! \brief Structure that represents a whiteboard */
 typedef struct janus_whiteboard {
@@ -50,7 +51,17 @@ typedef struct janus_whiteboard {
 	janus_mutex mutex;
 } janus_whiteboard;
 
-#define MAX_PACKET_CAPACITY 10000
+/*! \brief 用于在将处理结果返回给调用者。 */
+typedef struct janus_whiteboard_result {
+	int   ret;
+
+	/*! \brief 前段获取场景数据的时候，要求有关键帧和指令包，不能合并到一个包. */
+	int   keyframe_len;
+	void* keyframe_buf;
+	int   command_len;
+	void* command_buf;
+} janus_whiteboard_result;
+
 /*! \brief Initialize the whiteboard code
  * @param[in] tempnames Whether the filenames should have a temporary extension, while saving, or not
  * @param[in] extension Extension to add in case tempnames is true */
@@ -70,7 +81,7 @@ janus_whiteboard *janus_whiteboard_create(const char *dir, const char *filename,
  * @param[in] buffer The frame data to save
  * @param[in] length The frame data length
  * @returns 0 in case of success, a negative integer otherwise */
-int janus_whiteboard_save_package(janus_whiteboard *whiteboard, char *buffer, size_t length, uint8_t **out);
+janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboard, char *buffer, size_t length);
 
 uint8_t *janus_whiteboard_current_scene_data(janus_whiteboard *whiteboard, int *size);
 /*! \brief Close the whiteboard

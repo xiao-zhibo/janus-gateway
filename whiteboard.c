@@ -103,6 +103,7 @@ int janus_whiteboard_parse_or_create_header_l(janus_whiteboard *whiteboard) {
 		whiteboard->header = pb__header__unpack(NULL, header_len, (const uint8_t *)buffer);
 		g_free(buffer);
 	}
+	JANUS_LOG(LOG_HUGE, "Parse or create header success\n");
 
 	if (whiteboard->header)
 		return header_len;
@@ -115,6 +116,8 @@ int janus_whiteboard_parse_or_create_header_l(janus_whiteboard *whiteboard) {
 	whiteboard->header->keyframes[0] = g_malloc0(sizeof(Pb__KeyFrame));
 	whiteboard->header->keyframes[0]->offset = 0;
 	whiteboard->header->keyframes[0]->timestamp = 0;
+
+	// FIXME:Rison 需要有一个包指向offset为0处，否则开头的部分将会被遗漏
 
 	return 0;
 }
@@ -343,28 +346,37 @@ int janus_whiteboard_on_receive_keyframe_l(janus_whiteboard *whiteboard, Pb__Pac
     本函数尝试以白板数据进行解包，对 场景切换，获取场景数据进行额外处理。其余情况正常保存。
     //FIXME:Rison 是否需要保存场景切换这些包，因为回访也需要用到?
     @returns 保存成功返回非负数。如果有数据返回则表示返回数据的长度，*/
-int janus_whiteboard_save_package(janus_whiteboard *whiteboard, char *buffer, size_t length, uint8_t **out) {
+janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboard, char *buffer, size_t length) {
+	janus_whiteboard_result result = 
+	{
+		.ret          = -1, /* 大于0时表示发起者发出了指令，将有数据需要返回. */
+		.keyframe_len = 0,
+		.keyframe_buf = NULL,
+		.command_len  = 0,
+		.command_buf  = NULL,
+	};
+
 	if(!whiteboard) {
 		JANUS_LOG(LOG_ERR, "Error saving frame. Whiteboard is empty\n");
-		return -1;
+		return result;
 	}
-	if(!buffer || length < 1 || !out) {
+	if(!buffer || length <= 0) {
 		JANUS_LOG(LOG_WARN, "Error saving frame. Invalid params\n");
-		return -1;
+		return result;
 	}
 
 	janus_mutex_lock_nodebug(&whiteboard->mutex);
 	if(!whiteboard->file) {
 		janus_mutex_unlock_nodebug(&whiteboard->mutex);
 		JANUS_LOG(LOG_WARN, "Error saving frame. whiteboard->file is empty\n");
-		return -1;
+		return result;
 	}
 
 	Pb__Package *package = pb__package__unpack(NULL, length, (const uint8_t*)buffer);
 	if (package == NULL) {
 		JANUS_LOG(LOG_WARN, "Error saving frame. Invalid whiteboard packet\n");
 		janus_mutex_unlock_nodebug(&whiteboard->mutex);
-		return -1;
+		return result;
 	}
 
 	if (package->type == KLPackageType_SwitchScene) {
@@ -372,7 +384,8 @@ int janus_whiteboard_save_package(janus_whiteboard *whiteboard, char *buffer, si
 		if (package->scene == whiteboard->scene) {
 			JANUS_LOG(LOG_WARN, "Get a request to switch scene, but currenttly the whiteboard is on the target %d scene\n", package->scene);
 		    janus_mutex_unlock_nodebug(&whiteboard->mutex);
-			return 0;
+		    result.ret = 0;
+			return result;
 		}
 		whiteboard->scene = package->scene;
 		janus_whiteboard_remove_packets_l(whiteboard->scene_packages, 0, whiteboard->scene_package_num);
@@ -383,23 +396,23 @@ int janus_whiteboard_save_package(janus_whiteboard *whiteboard, char *buffer, si
 		}
 	} else if (package->type == KLPackageType_SceneData) {
 	// 请求指定场景的白板数据
-		int out_size = 0;
 		if ( package->scene == whiteboard->scene || package->scene == -1 ) {
 			// 当前场景
-			*out = janus_whiteboard_packed_data_l(whiteboard->scene_packages, whiteboard->scene_package_num, &out_size);
+			result.command_buf = janus_whiteboard_packed_data_l(whiteboard->scene_packages, whiteboard->scene_package_num, &(result.command_len));
 		} else if (package->scene >= 0) {
 			// 其他场景
 			Pb__Package **packages = g_malloc0(sizeof(Pb__Package*) * MAX_PACKET_CAPACITY);
 			int num = janus_whiteboard_scene_data_l(whiteboard, package->scene, packages);
-			*out = janus_whiteboard_packed_data_l(packages, num, &out_size);
+			result.command_buf = janus_whiteboard_packed_data_l(packages, num, &(result.command_len));
 			for (int i = 0; i < num; i ++) {
 				pb__package__free_unpacked(packages[i], NULL);
 			}
 			g_free(packages);
 		}
 		janus_mutex_unlock_nodebug(&whiteboard->mutex);
-		JANUS_LOG(LOG_VERB, "Get scene data with length: %d\n", out_size);
-		return out_size;
+		JANUS_LOG(LOG_VERB, "Get scene data with length: %d\n", result.command_len);
+		result.ret = 1;
+		return result;
 	}
 
 	//if (package->type != KLPackageType_SceneData)// 此处无需考虑非scene data的情况，因为这种情况已在前面处理并返回
@@ -428,7 +441,8 @@ int janus_whiteboard_save_package(janus_whiteboard *whiteboard, char *buffer, si
 	}
 
 	janus_mutex_unlock_nodebug(&whiteboard->mutex);
-	return 0;
+	result.ret = 0;
+	return result;
 }
 
 int janus_whiteboard_close(janus_whiteboard *whiteboard) {
