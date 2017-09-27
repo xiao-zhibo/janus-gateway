@@ -502,6 +502,13 @@ int janus_whiteboard_free(janus_whiteboard *whiteboard) {
 		}
 	}
 	g_free(whiteboard->scene_keyframes);
+	whiteboard->scene_keyframes = NULL;
+	
+	/*! 清理当前场景缓存的白板数据 */
+	janus_whiteboard_remove_packets_l(whiteboard->scene_packages, 0, whiteboard->scene_package_num);
+	g_free(whiteboard->scene_packages);
+	whiteboard->scene_packages = NULL;
+	whiteboard->scene_package_num = 0;
 
 	janus_mutex_unlock_nodebug(&whiteboard->mutex);
 	g_free(whiteboard);
