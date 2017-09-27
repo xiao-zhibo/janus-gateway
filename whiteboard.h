@@ -47,8 +47,6 @@ typedef struct janus_whiteboard {
 	Pb__KeyFrame **scene_keyframes;
 	int scene_keyframe_maxnum;
 	
-	/*! \brief header以后是得写文件的，不应一直存内存，因为可能会比较大 */
-	Pb__Header *header;
 	/*! \brief Mutex to lock/unlock this whiteboard instance */ 
 	janus_mutex mutex;
 } janus_whiteboard;

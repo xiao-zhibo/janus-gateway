@@ -89,42 +89,37 @@ int janus_whiteboard_parse_or_create_header_l(janus_whiteboard *whiteboard) {
 	if(!whiteboard || !whiteboard->header_file)
 		return -1;
 
-	int header_len = 0;
-	fseek(whiteboard->header_file, 0, SEEK_SET);
-
-	// 尝试解析数据到whiteboard->header，如果不成功则执行创建操作
-	if(fread(&header_len, sizeof(int), 1, whiteboard->header_file) == 1) {
-		char *buffer = g_malloc0(header_len);
-		if (janus_whiteboard_read_packet_from_file_l(buffer, header_len, whiteboard->header_file) < 0) {
-			JANUS_LOG(LOG_ERR, "Error happens when reading header packet from basefile: %s\n", whiteboard->filename);
-			g_free(buffer);
-			return -1;
-		}
-		whiteboard->header = pb__header__unpack(NULL, header_len, (const uint8_t *)buffer);
-		g_free(buffer);
-	}
-	JANUS_LOG(LOG_HUGE, "Parse or create header success\n");
-
-	if (whiteboard->header)
-		return header_len;
-
-	whiteboard->header = g_malloc0(sizeof(Pb__Header));
-	memset(whiteboard->header, 0, sizeof(Pb__Header));
-	// FIXME: 添加一个变量capacity，代表容量，可能更好
-	whiteboard->header->keyframes = g_malloc0(sizeof(Pb__KeyFrame*) * MAX_PACKET_CAPACITY);
-	whiteboard->header->n_keyframes = 1;
-	whiteboard->header->keyframes[0] = g_malloc0(sizeof(Pb__KeyFrame));
-	whiteboard->header->keyframes[0]->offset = 0;
-	whiteboard->header->keyframes[0]->timestamp = 0;
-
-	whiteboard->scene_keyframes    = g_malloc0(sizeof(Pb__KeyFrame*) * MAX_PACKET_CAPACITY);//check here
+	whiteboard->scene_keyframes    = g_malloc0(sizeof(Pb__KeyFrame*) * MAX_PACKET_CAPACITY);
 	whiteboard->scene_keyframes[0] = g_malloc0(sizeof(Pb__KeyFrame));
 	pb__key_frame__init(whiteboard->scene_keyframes[0]);
 	whiteboard->scene_keyframes[0]->offset = 0;
 	whiteboard->scene_keyframes[0]->timestamp = 0;
 	whiteboard->scene_keyframe_maxnum = 1;
 
-	// FIXME:Rison 需要有一个包指向offset为0处，否则开头的部分将会被遗漏
+	/*int keyframe_len = 0;
+	fseek(whiteboard->header_file, 0, SEEK_SET);
+
+	// 尝试解析数据到whiteboard->header，如果不成功则执行创建操作
+	while(fread(&keyframe_len, sizeof(size_t), 1, whiteboard->header_file) == 1) {
+		char *buffer = g_malloc0(keyframe_len);
+		if (janus_whiteboard_read_packet_from_file_l(buffer, keyframe_len, whiteboard->header_file) < 0) {
+			JANUS_LOG(LOG_ERR, "Error happens when reading keyframe index packet from basefile: %s\n", whiteboard->filename);
+			g_free(buffer);
+			return -1;
+		}
+		Pb__KeyFrame *tmp_keyframe = pb__key_frame__unpack(NULL, keyframe_len, (const uint8_t*)buffer);
+		if (tmp_keyframe != NULL) {
+			//TODO seek to target and read the key frame.
+			Pb__KeyFrame *out = g_malloc0(sizeof(Pb__KeyFrame));
+			pb__key_frame__init(out);
+			out->offset    = tmp_keyframe->offset;
+			out->timestamp = tmp_keyframe->timestamp;
+
+			pb__key_frame__free_unpacked(tmp_keyframe, NULL);
+		}
+		g_free(buffer);
+	}*/
+	JANUS_LOG(LOG_HUGE, "Parse or create header success\n");
 
 	return 0;
 }
