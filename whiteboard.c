@@ -28,9 +28,9 @@
 /*! 本地函数，前置声明 */
 int      janus_whiteboard_read_packet_from_file_l(void* dst, size_t len, FILE *src_file);
 int      janus_whiteboard_write_packet_to_file_l(void* src, size_t len, FILE *dst_file);
-int      janus_whiteboard_remove_packets_l(Pb__Package** packages, int stat_index, int len);
+int      janus_whiteboard_remove_packets_l(Pb__Package** packages, int start_index, int len);
 int      janus_whiteboard_parse_or_create_header_l(janus_whiteboard *whiteboard);
-void     janus_whiteboard_add_pkt_to_packages_l(Pb__Package** packages, int* packages_len, const Pb__Package* dst_pkg);
+void     janus_whiteboard_add_pkt_to_packages_l(Pb__Package** packages, size_t* packages_len, Pb__Package* dst_pkg);
 uint8_t *janus_whiteboard_packed_data_l(Pb__Package **packages, int len, int *out_len);
 int      janus_whiteboard_scene_data_l(janus_whiteboard *whiteboard, int scene, Pb__Package** packages);
 int      janus_whiteboard_on_receive_keyframe_l(janus_whiteboard *whiteboard, Pb__Package *package);
@@ -70,9 +70,9 @@ int janus_whiteboard_write_packet_to_file_l(void* src, size_t len, FILE *dst_fil
 }
 
 /*! 由于比较多地方需要 free packets，独立成一个函数比较好管理. 需要对packets长度进行判断防止崩溃 */
-int janus_whiteboard_remove_packets_l(Pb__Package** packages, int stat_index, int len) {
-	int end_index = stat_index + len;
-	for(int index = stat_index; index < end_index; index++) {
+int janus_whiteboard_remove_packets_l(Pb__Package** packages, int start_index, int len) {
+	int end_index = start_index + len;
+	for(int index = start_index; index < end_index; index++) {
 		Pb__Package **tmp_package = &packages[index];
 		if (*tmp_package) {
 			pb__package__free_unpacked(*tmp_package, NULL);
@@ -263,7 +263,7 @@ uint8_t *janus_whiteboard_current_scene_data(janus_whiteboard *whiteboard, int *
 	return out_buf;
 }
 
-void janus_whiteboard_add_pkt_to_packages_l(Pb__Package** packages, int* packages_len, const Pb__Package* dst_pkg) {
+void janus_whiteboard_add_pkt_to_packages_l(Pb__Package** packages, size_t* packages_len, Pb__Package* dst_pkg) {
 	if (packages == NULL || packages_len == NULL || dst_pkg == NULL)
 		return;
 
