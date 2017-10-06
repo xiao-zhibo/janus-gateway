@@ -150,6 +150,10 @@ rec_dir = <folder where recordings should be stored, when enabled>
 #include "../protobuf/command.pb-c.h"
 #include "../whiteboard.h"
 
+/* 64KB, unsigned char */
+#define JAVUS_VIDEOROOM_DATA_PKT_LIMIT      65536
+/* version 1 + size 8 + chunk 1 + index 4 = 14 byte */
+#define JAVUS_VIDEOROOM_DATA_PKT_HEADER_LEN 14
 
 /* Plugin information */
 #define JANUS_VIDEOROOM_VERSION			9
@@ -582,6 +586,7 @@ typedef struct janus_videoroom_participant {
 	janus_mutex listeners_mutex;
 	GHashTable *rtp_forwarders;
 	janus_mutex rtp_forwarders_mutex;
+	janus_mutex whiteboard_data_send_mutex;
 	int udp_sock; /* The udp socket on which to forward rtp packets */
 	gboolean kicked;	/* Whether this participant has been kicked */
 } janus_videoroom_participant;
@@ -3320,6 +3325,7 @@ static void *janus_videoroom_handler(void *data) {
 				publisher->fir_seq = 0;
 				janus_mutex_init(&publisher->rtp_forwarders_mutex);
 				publisher->rtp_forwarders = g_hash_table_new_full(NULL, NULL, NULL, (GDestroyNotify)janus_videoroom_rtp_forwarder_free_helper);
+				janus_mutex_init(&publisher->whiteboard_data_send_mutex);
 				publisher->udp_sock = -1;
 				/* Finally, generate a private ID: this is only needed in case the participant
 				 * wants to allow the plugin to know which subscriptions belong to them */
@@ -4737,9 +4743,11 @@ static void janus_videoroom_participant_free(janus_videoroom_participant *p) {
 
 	janus_mutex_destroy(&p->listeners_mutex);
 	janus_mutex_destroy(&p->rtp_forwarders_mutex);
+	janus_mutex_destroy(&p->whiteboard_data_send_mutex);
 	g_free(p);
 }
 
+/* 需要重新封包。确保不大于64KB一个包 | version | total size | chunk | index | data buf | */
 static void janus_videoroom_relay_whiteboard_packet(janus_videoroom_participant *participant, char *buf, int len) {
 	if(!participant || !participant->session) {
 		return;
@@ -4751,9 +4759,58 @@ static void janus_videoroom_relay_whiteboard_packet(janus_videoroom_participant 
 	if(!session->started) {
 		return;
 	}
-	if(gateway != NULL && buf != NULL, len > 0) {
-		JANUS_LOG(LOG_VERB, "Forwarding DataChannel message (%zu bytes) to viewer.\n", len);
-		gateway->relay_data(session->handle, buf, len);
+	if(gateway != NULL && buf != NULL && len > 0) {
+		janus_mutex_lock(&participant->whiteboard_data_send_mutex);
+		JANUS_LOG(LOG_VERB, "Forwarding DataChannel message (%d bytes) to viewer.\n", len);
+		unsigned char version = 1;
+		guint64 total_size    = len;//Byte
+		unsigned char chunked = 0;//是否结束
+		guint32 pkt_index     = 0;
+		guint64 data_writen   = 0;//已经写入
+		guint64 data_writing  = 0;//等待写入
+		const guint64 d_limit = JAVUS_VIDEOROOM_DATA_PKT_LIMIT - JAVUS_VIDEOROOM_DATA_PKT_HEADER_LEN;
+		char *chunk_pkt       = g_malloc0(JAVUS_VIDEOROOM_DATA_PKT_LIMIT);
+		if (chunk_pkt == NULL) {
+			JANUS_LOG(LOG_ERR, "Memory error.\n");
+			janus_mutex_unlock(&participant->whiteboard_data_send_mutex);
+			return;
+		}
+		do {
+			memset(chunk_pkt, 0, JAVUS_VIDEOROOM_DATA_PKT_LIMIT);
+			/* 拷贝包头 */
+			unsigned pkt_offset = 0;
+			memcpy((void*)(chunk_pkt + pkt_offset), (void*)&version, sizeof(version));
+			pkt_offset += sizeof(version);
+			memcpy((void*)(chunk_pkt + pkt_offset), (void*)&total_size, sizeof(total_size));
+			pkt_offset += sizeof(total_size);
+			if (data_writen + d_limit >= total_size) {
+				chunked = 0;
+				data_writing = total_size - data_writen;
+			} else {
+				chunked = 1;
+				data_writing = d_limit;
+			}
+			memcpy((void*)(chunk_pkt + pkt_offset), (void*)&chunked, sizeof(chunked));
+			pkt_offset += sizeof(chunked);
+			memcpy((void*)(chunk_pkt + pkt_offset), (void*)&pkt_index, sizeof(pkt_index));
+			pkt_offset += sizeof(pkt_index);
+			if (pkt_offset != JAVUS_VIDEOROOM_DATA_PKT_HEADER_LEN) {
+				JANUS_LOG(LOG_WARN, "packet offset %d not equal default length %d, reset to default?\n", pkt_offset, JAVUS_VIDEOROOM_DATA_PKT_HEADER_LEN);
+				pkt_offset = JAVUS_VIDEOROOM_DATA_PKT_HEADER_LEN;
+			}
+
+			/* 拷贝并分发内容分块 */
+			memcpy((void*)(chunk_pkt + pkt_offset), (void*)(buf + data_writen), data_writing);
+			gateway->relay_data(session->handle, chunk_pkt, pkt_offset + data_writing);
+			JANUS_LOG(LOG_VERB, ">Forwarding DataChannel message (%zu bytes) to viewer. chunk:%d, index:%d\n", data_writing, chunked, pkt_index);
+			pkt_index   += 1;
+			data_writen += data_writing;
+
+		} while(data_writen < total_size);
+		
+		g_free(chunk_pkt);
+		chunk_pkt = NULL;
+		janus_mutex_unlock(&participant->whiteboard_data_send_mutex);
 	}
 	return;
 }
