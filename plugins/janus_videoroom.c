@@ -775,13 +775,6 @@ static void *janus_videoroom_watchdog(void *data) {
 					continue;
 				}
 
-				if(room->whiteboard) {
-					janus_whiteboard_close(room->whiteboard);
-					JANUS_LOG(LOG_INFO, "Closed data recording %s\n", room->whiteboard->filename ? room->whiteboard->filename : "??");
-					janus_whiteboard_free(room->whiteboard);
-				}
-				room->whiteboard = NULL;
-
 				if(room_now - room->destroyed >= 5*G_USEC_PER_SEC) {
 					GList *rm = rl->next;
 					old_rooms = g_list_delete_link(old_rooms, rl);
@@ -4673,8 +4666,8 @@ static void janus_videoroom_relay_data_packet(gpointer data, gpointer user_data)
 	if(!session->started) {
 		return;
 	}
-	if(gateway != NULL && packet != NULL, packet->length > 0) {
-		JANUS_LOG(LOG_VERB, "Forwarding DataChannel message (%zu bytes) to viewer.\n", packet->length);
+	if(gateway != NULL && packet != NULL && packet->length > 0) {
+		JANUS_LOG(LOG_VERB, "Forwarding DataChannel message (%d bytes) to viewer.\n", packet->length);
 		gateway->relay_data(session->handle, packet->data, packet->length);
 	}
 	return;
@@ -4684,6 +4677,14 @@ static void janus_videoroom_relay_data_packet(gpointer data, gpointer user_data)
 static void janus_videoroom_free(janus_videoroom *room) {
 	if(room) {
 		janus_mutex_lock(&room->participants_mutex);
+		/* 确保白板是最后并且是一定能被释放的 */
+		if(room->whiteboard) {
+			janus_whiteboard_close(room->whiteboard);
+			JANUS_LOG(LOG_INFO, "Closed data recording %s\n", room->whiteboard->filename ? room->whiteboard->filename : "??");
+			janus_whiteboard_free(room->whiteboard);
+		}
+		room->whiteboard = NULL;
+
 		g_free(room->room_name);
 		g_free(room->room_secret);
 		g_free(room->room_pin);
