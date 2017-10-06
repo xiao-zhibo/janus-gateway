@@ -290,6 +290,7 @@ int janus_whiteboard_scene_data_l(janus_whiteboard *whiteboard, int scene, Pb__P
 		Pb__KeyFrame *target_keyframe = whiteboard->scene_keyframes[scene];
 		if (target_keyframe != NULL) {
 			package_data_offset = target_keyframe->offset;
+			JANUS_LOG(LOG_VERB, "Get scene data offset %d\n", package_data_offset);
 		}
 	}
 	// seek 到文件开头。FIXME:Rison 使用数组存起来 scene--->offset, 就不需要每次从头开始读取了
@@ -355,7 +356,27 @@ int janus_whiteboard_on_receive_keyframe_l(janus_whiteboard *whiteboard, Pb__Pac
 	    whiteboard->scene_keyframe_maxnum = scene_index + 1;//scene 从 0 开始
 	}
 
-	// FIXME:Rison 定期保存头部，考虑关键帧的情况，以便加速查找？
+	/*! 将 keyframe 保存到文件 */
+	size_t length = pb__key_frame__get_packed_size(*target_keyframe);
+	void *buffer = g_malloc0(length);
+	if (buffer == NULL) {
+		JANUS_LOG(LOG_WARN, "Save keyframe fail. Out of memory when allocating memory for tmp file buffer\n");
+		return -1;
+	}
+
+	pb__key_frame__pack(*target_keyframe, buffer);
+	fseek(whiteboard->header_file, 0, SEEK_END);
+	size_t ret = fwrite(&length, sizeof(size_t), 1, whiteboard->header_file);
+	if (ret == 1) {
+	    ret = janus_whiteboard_write_packet_to_file_l(buffer, length, whiteboard->header_file);
+	    ret = (ret==0) ? 1 : 0;//由于以上函数封装的关系，此处需要对返回的结果处理下 
+	}
+	if (ret == 0) {
+		JANUS_LOG(LOG_ERR, "Error happens when saving keyframe packet index to basefile: %s\n", whiteboard->filename);
+		return -1;
+	}
+	JANUS_LOG(LOG_WARN, "--------------------------------, %s, %d, normal data\n", __FUNCTION__, __LINE__);
+
 	return 0;
 }
 
@@ -463,13 +484,18 @@ janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboa
 }
 
 int janus_whiteboard_close(janus_whiteboard *whiteboard) {
-	if(!whiteboard || !whiteboard->file)
+	if (!whiteboard)
 		return -1;
 	janus_mutex_lock_nodebug(&whiteboard->mutex);
-	if(whiteboard->file) {
+	if (whiteboard->file) {
 		fseek(whiteboard->file, 0L, SEEK_END);
 		size_t fsize = ftell(whiteboard->file);
-		JANUS_LOG(LOG_WARN, "File is %zu bytes: %s\n", fsize, whiteboard->filename);
+		JANUS_LOG(LOG_WARN, "Data file is %zu bytes: %s\n", fsize, whiteboard->filename);
+	}
+	if (whiteboard->header_file) {
+		fseek(whiteboard->header_file, 0L, SEEK_END);
+		size_t fsize = ftell(whiteboard->header_file);
+		JANUS_LOG(LOG_WARN, "Header file is %zu bytes: %s\n", fsize, whiteboard->filename);
 	}
 	janus_mutex_unlock_nodebug(&whiteboard->mutex);
 	return 0;
