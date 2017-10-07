@@ -221,7 +221,6 @@ janus_whiteboard *janus_whiteboard_create(const char *dir, const char *filename,
 /*! 将所有的指令集合到一个pkp，再打包为 buffer 二进制数据返回给客户端
     len=0的时候继续打包，返回一个清屏指令 */
 void janus_whiteboard_packed_data_l(Pb__Package **packages, int num, janus_whiteboard_result* result) {
-	JANUS_LOG(LOG_WARN, "--------------------------------, %s, %d, num:%d\n", __FUNCTION__, __LINE__, num);
 	if (packages == NULL || num < 0 || result == NULL) {
 		result->ret = -1;
 		return;
@@ -270,13 +269,6 @@ void janus_whiteboard_packed_data_l(Pb__Package **packages, int num, janus_white
 			pb__package__pack(first_package, result->keyframe_buf);
 		}
 	}
-}
-
-/*! 用于返回当前场景的白板数据。由于页面切换时，可能比较多客户端调用获取场景数据接口，
-    如果调用 janus_whiteboard_scene_data_l 读取文本文件会造成效率问题。*/
-uint8_t *janus_whiteboard_current_scene_data(janus_whiteboard *whiteboard, int *size) {
-	//uint8_t *out_buf = janus_whiteboard_packed_data_l(whiteboard->scene_packages, whiteboard->scene_package_num, size);
-	return 0;//out_buf;
 }
 
 void janus_whiteboard_add_pkt_to_packages_l(Pb__Package** packages, size_t* packages_len, Pb__Package* dst_pkg) {
@@ -396,7 +388,6 @@ int janus_whiteboard_on_receive_keyframe_l(janus_whiteboard *whiteboard, Pb__Pac
 		JANUS_LOG(LOG_ERR, "Error happens when saving keyframe packet index to basefile: %s\n", whiteboard->filename);
 		return -1;
 	}
-	JANUS_LOG(LOG_WARN, "--------------------------------, %s, %d, normal data\n", __FUNCTION__, __LINE__);
 
 	return 0;
 }

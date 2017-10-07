@@ -83,7 +83,6 @@ janus_whiteboard *janus_whiteboard_create(const char *dir, const char *filename,
  * @returns 0 in case of success, a negative integer otherwise */
 janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboard, char *buffer, size_t length);
 
-uint8_t *janus_whiteboard_current_scene_data(janus_whiteboard *whiteboard, int *size);
 /*! \brief Close the whiteboard
  * @param[in] whiteboard The janus_whiteboard instance to close
  * @returns 0 in case of success, a negative integer otherwise */
