@@ -587,7 +587,7 @@ typedef struct janus_videoroom_participant {
 	GHashTable *rtp_forwarders;
 	janus_mutex rtp_forwarders_mutex;
 	char  *whiteboard_data_packet_buf;
-	gint64 whiteboard_data_packet_received;
+	guint64 whiteboard_data_packet_received;
 	janus_mutex whiteboard_data_send_mutex;
 	janus_mutex whiteboard_data_recv_mutex;
 	int udp_sock; /* The udp socket on which to forward rtp packets */
