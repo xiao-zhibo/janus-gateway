@@ -150,8 +150,8 @@ rec_dir = <folder where recordings should be stored, when enabled>
 #include "../protobuf/command.pb-c.h"
 #include "../whiteboard.h"
 
-/* 64KB, unsigned char */
-#define JAVUS_VIDEOROOM_DATA_PKT_LIMIT      65536
+/* 16KB, unsigned char */
+#define JAVUS_VIDEOROOM_DATA_PKT_LIMIT      (16*1024)
 /* version 1 + size 8 + chunk 1 + index 4 = 14 byte */
 #define JAVUS_VIDEOROOM_DATA_PKT_HEADER_LEN 14
 
@@ -4865,7 +4865,7 @@ static void janus_videoroom_relay_whiteboard_packet(janus_videoroom_participant 
 			memcpy((void*)(chunk_pkt + pkt_offset), (void*)&total_size, sizeof(total_size));
 			pkt_offset += sizeof(total_size);
 			if (data_writen + d_limit >= total_size) {
-				chunked = 0;
+				chunked |= 0;/* 如果拆包，那就是继续为1 */
 				data_writing = total_size - data_writen;
 			} else {
 				chunked = 1;
