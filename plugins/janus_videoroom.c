@@ -586,7 +586,10 @@ typedef struct janus_videoroom_participant {
 	janus_mutex listeners_mutex;
 	GHashTable *rtp_forwarders;
 	janus_mutex rtp_forwarders_mutex;
+	char  *whiteboard_data_packet_buf;
+	gint64 whiteboard_data_packet_received;
 	janus_mutex whiteboard_data_send_mutex;
+	janus_mutex whiteboard_data_recv_mutex;
 	int udp_sock; /* The udp socket on which to forward rtp packets */
 	gboolean kicked;	/* Whether this participant has been kicked */
 } janus_videoroom_participant;
@@ -661,6 +664,8 @@ typedef struct janus_videoroom_data_packet {
 #define JANUS_VIDEOROOM_ERROR_ID_EXISTS			436
 #define JANUS_VIDEOROOM_ERROR_INVALID_SDP		437
 
+
+static int janus_videoroom_wrap_whiteboard_data_packet(janus_videoroom_participant *participant, char *buf, int len);
 
 static guint32 janus_videoroom_rtp_forwarder_add_helper(janus_videoroom_participant *p,
 		const gchar* host, int port, int pt, uint32_t ssrc, int substream, gboolean is_video, gboolean is_data) {
@@ -2847,27 +2852,42 @@ void janus_videoroom_incoming_data(janus_plugin_session *handle, char *buf, int 
 		}
 	}
 	janus_mutex_unlock(&participant->rtp_forwarders_mutex);
+
+	if (len <= JAVUS_VIDEOROOM_DATA_PKT_HEADER_LEN) {
+		JANUS_LOG(LOG_WARN, "Data packet length is must bigger than %d", JAVUS_VIDEOROOM_DATA_PKT_HEADER_LEN);
+		return;
+	}
+	janus_mutex_lock(&participant->whiteboard_data_recv_mutex);
+	if (janus_videoroom_wrap_whiteboard_data_packet(participant, buf, len) <= 0) {
+		// 需要继续等待更多的数据封包或者遇到无法处理的情况
+		janus_mutex_unlock(&participant->whiteboard_data_recv_mutex);
+		return;
+	}
+
 	/* Get a string out of the data */
-	char *text = g_malloc0(len+1);
-	memcpy(text, buf, len);
-	*(text+len) = '\0';
+	//char *text = g_malloc0(len+1);
+	//memcpy(text, buf, len);
+	//*(text+len) = '\0';
 	/* Save the message if we're recording */
-	int ret = janus_recorder_save_frame(participant->drc, text, strlen(text));
+	int ret = janus_recorder_save_frame(participant->drc, participant->whiteboard_data_packet_buf, participant->whiteboard_data_packet_received);
 	/* 就目前的情况下，data数据就是我们需要的白板数据，保存之
 	   @returns wret 为白板数据请求封装。前段有部分特殊指令需要返回关键帧或普通的指令帧 */
-	janus_whiteboard_result wret = janus_whiteboard_save_package(participant->room->whiteboard, buf, len);
+	janus_whiteboard_result wret = janus_whiteboard_save_package(participant->room->whiteboard, 
+		participant->whiteboard_data_packet_buf, participant->whiteboard_data_packet_received);
 	JANUS_LOG(LOG_INFO, "Got a DataChannel message (%d bytes) to forward, result: %d\n", wret.keyframe_len+wret.command_len, wret.ret);
 	
 	/* ret 大于0时表示发起者发出了指令，将有数据需要返回. */
 	if (wret.ret > 0) {
 		/* 返回关键帧 */
 		if (wret.keyframe_len > 0 && wret.keyframe_buf != NULL) {
+			JANUS_LOG(LOG_VERB, "Return keyframe to viewer.\n");
 		    janus_videoroom_relay_whiteboard_packet(participant, wret.keyframe_buf, wret.keyframe_len);
 		    g_free(wret.keyframe_buf);
 		    wret.keyframe_buf = NULL;
 		}
 		/* 返回指令帧 */
 		if (wret.command_len > 0 && wret.command_buf != NULL) {
+			JANUS_LOG(LOG_VERB, "Return normal packeted command frame to viewer.\n");
 			janus_videoroom_relay_whiteboard_packet(participant, wret.command_buf, wret.command_len);
 			g_free(wret.command_buf);
 			wret.command_buf = NULL;
@@ -2881,7 +2901,11 @@ void janus_videoroom_incoming_data(janus_plugin_session *handle, char *buf, int 
 		g_slist_foreach(participant->listeners, janus_videoroom_relay_data_packet, &packet);
 		janus_mutex_unlock_nodebug(&participant->listeners_mutex);
 	}
-	g_free(text);
+	//g_free(text);
+	g_free(participant->whiteboard_data_packet_buf);
+	participant->whiteboard_data_packet_buf = NULL;
+	participant->whiteboard_data_packet_received = 0;
+	janus_mutex_unlock(&participant->whiteboard_data_recv_mutex);
 }
 
 void janus_videoroom_slow_link(janus_plugin_session *handle, int uplink, int video) {
@@ -3319,6 +3343,9 @@ static void *janus_videoroom_handler(void *data) {
 				janus_mutex_init(&publisher->rtp_forwarders_mutex);
 				publisher->rtp_forwarders = g_hash_table_new_full(NULL, NULL, NULL, (GDestroyNotify)janus_videoroom_rtp_forwarder_free_helper);
 				janus_mutex_init(&publisher->whiteboard_data_send_mutex);
+				publisher->whiteboard_data_packet_buf = NULL;
+				publisher->whiteboard_data_packet_received = 0;
+				janus_mutex_init(&publisher->whiteboard_data_recv_mutex);
 				publisher->udp_sock = -1;
 				/* Finally, generate a private ID: this is only needed in case the participant
 				 * wants to allow the plugin to know which subscriptions belong to them */
@@ -4745,7 +4772,60 @@ static void janus_videoroom_participant_free(janus_videoroom_participant *p) {
 	janus_mutex_destroy(&p->listeners_mutex);
 	janus_mutex_destroy(&p->rtp_forwarders_mutex);
 	janus_mutex_destroy(&p->whiteboard_data_send_mutex);
+	janus_mutex_destroy(&p->whiteboard_data_recv_mutex);
 	g_free(p);
+}
+
+/* 对收到的包进行重新打包，封包 */
+static int janus_videoroom_wrap_whiteboard_data_packet(janus_videoroom_participant *participant, char *buf, int len) {
+	unsigned char version = (unsigned char)buf[0];
+	guint64 total_size    = 0;
+	unsigned char chunked = (unsigned char)buf[sizeof(version)+sizeof(total_size)];//是否结束, 1+8
+	guint32 pkt_index     = 0;
+	memcpy((void*)&total_size, (const void*)(buf+sizeof(version)), sizeof(total_size));
+	memcpy((void*)&pkt_index,  (const void*)(buf+sizeof(version)+sizeof(total_size)+sizeof(chunked)), sizeof(pkt_index));
+	//JANUS_LOG(LOG_WARN, "version:%d, total_size:%zu, chunked:%d, pkt_index:%d\n", version, total_size, chunked, pkt_index);
+	if (chunked > 1) {
+		JANUS_LOG(LOG_WARN, "Unknown whiteboard packets\n");
+		return -1;
+	} else if (chunked) {
+		// 大包被拆分
+		// 开辟缓冲区
+		if (participant->whiteboard_data_packet_buf == NULL) {
+			participant->whiteboard_data_packet_buf = g_malloc0(total_size);
+			if (participant->whiteboard_data_packet_buf == NULL) {
+				JANUS_LOG(LOG_ERR, "Memory error on create whiteboard data packet buf\n");
+				return -1;
+			}
+			participant->whiteboard_data_packet_received = 0;
+		}
+
+		// 获取并复制内容到缓冲区上
+		guint64 real_data_size = len - JAVUS_VIDEOROOM_DATA_PKT_HEADER_LEN;
+		void *whiteboard_data_offset = participant->whiteboard_data_packet_buf + participant->whiteboard_data_packet_received;
+		memcpy(whiteboard_data_offset, (const void*)(buf+JAVUS_VIDEOROOM_DATA_PKT_HEADER_LEN), real_data_size);
+		participant->whiteboard_data_packet_received += real_data_size;
+		if (participant->whiteboard_data_packet_received < total_size) {
+			return 0;// 没接收完， 等待继续接收
+		} else {
+			participant->whiteboard_data_packet_received = total_size;
+		}
+	} else {
+		// 没有被拆分的情况
+		if (participant->whiteboard_data_packet_buf) {
+			g_free(participant->whiteboard_data_packet_buf);
+			participant->whiteboard_data_packet_buf = NULL;
+		}
+		participant->whiteboard_data_packet_buf = g_malloc0(total_size);
+		if (participant->whiteboard_data_packet_buf == NULL) {
+			JANUS_LOG(LOG_ERR, "Memory error on create whiteboard data packet buf\n");
+			return -1;
+		}
+
+		memcpy(participant->whiteboard_data_packet_buf, (const void*)(buf+JAVUS_VIDEOROOM_DATA_PKT_HEADER_LEN), total_size);
+		participant->whiteboard_data_packet_received = total_size;
+	}
+	return 1;
 }
 
 /* 需要重新封包。确保不大于64KB一个包 | version | total size | chunk | index | data buf | */
