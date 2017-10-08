@@ -43,6 +43,12 @@ cd /path/to/sctp
 const char *debug_folder = "/path/to/sctp";
 #endif
 
+// The biggest SCTP packet. Starting from a 'safe' wire MTU value of 1280,
+// take off 80 bytes for DTLS/TURN/TCP/IP overhead.
+const static uint32_t k_sctp_mtu = 1200;
+
+// The size of the SCTP association send buffer. the usrsctp default is 256kB.
+const static uint32_t k_send_buffer_size = 16*1024*1024;
 
 #define SCTP_MAX_PACKET_SIZE (1<<16)
 
@@ -98,6 +104,18 @@ int janus_sctp_init(void) {
 	usrsctp_init(0, janus_sctp_data_to_dtls, NULL);
 	sctp_running = TRUE;
 
+    // To turn on/off detailed SCTP debugging. You will also need to have the
+    // SCTP_DEBUG cpp defines flag.
+    // usrsctp_sysctl_set_sctp_debug_on(SCTP_DEBUG_ALL);
+    // TODO(ldixon): Consider turning this on/off.
+	usrsctp_sysctl_set_sctp_ecn_enable(0);
+    // This is harmless, but we should find out when the library default changes.
+    // Make it big enough to send a large of data to everyone
+    int send_size = usrsctp_sysctl_get_sctp_sendspace();
+    if (send_size != k_send_buffer_size) {
+      JANUS_LOG(LOG_WARN, "-Got different send size %d than expected: %d, fix it\n", send_size, k_send_buffer_size);
+      usrsctp_sysctl_set_sctp_sendspace(k_send_buffer_size);
+    }
 #ifdef DEBUG_SCTP
 	JANUS_LOG(LOG_WARN, "SCTP debugging to files enabled: going to save them in %s\n", debug_folder);
 	if(janus_mkdir(debug_folder, 0755) < 0) {
@@ -157,8 +175,13 @@ janus_sctp_association *janus_sctp_association_create(void *dtls, uint64_t handl
 	janus_mutex_init(&sctp->mutex);
 
 	usrsctp_register_address((void *)sctp);
-	usrsctp_sysctl_set_sctp_ecn_enable(0);
-	if((sock = usrsctp_socket(AF_CONN, SOCK_STREAM, IPPROTO_SCTP, janus_sctp_incoming_data, NULL, 0, (void *)sctp)) == NULL) {
+	
+	// If kSendBufferSize isn't reflective of reality, we log an error, but we
+	// still have to do something reasonable here.  Look up what the buffer's
+	// real size is and set our threshold to something reasonable.
+	const int kSendThreshold = usrsctp_sysctl_get_sctp_sendspace() / 2;
+	
+	if((sock = usrsctp_socket(AF_CONN, SOCK_STREAM, IPPROTO_SCTP, janus_sctp_incoming_data, NULL, kSendThreshold, (void *)sctp)) == NULL) {
 		JANUS_LOG(LOG_ERR, "[%"SCNu64"] Error creating usrsctp socket...\n", handle_id);
 		g_free(sctp);
 		sctp = NULL;
@@ -277,6 +300,17 @@ int janus_sctp_association_setup(janus_sctp_association *sctp) {
 		return -1;
 	}
 	JANUS_LOG(LOG_VERB, "[%"SCNu64"] Connected to the DataChannel peer\n", sctp->handle_id);
+
+	// Set the MTU and disable MTU discovery.////////
+	// We can only do this after usrsctp_connect or it has no effect.
+	struct sctp_paddrparams params = {{0}};
+	memcpy(&params.spp_address, &sconn, sizeof(sconn));
+	params.spp_flags = SPP_PMTUD_DISABLE;
+	params.spp_pathmtu = k_sctp_mtu;
+	if (usrsctp_setsockopt(sock, IPPROTO_SCTP, SCTP_PEER_ADDR_PARAMS, &params, sizeof(params))) {
+		JANUS_LOG(LOG_VERB, "[%"SCNu64"] Failed to set SCTP_PEER_ADDR_PARAMS.", sctp->handle_id);
+		return -1;
+	}
 
 	janus_mutex_lock(&sctp->mutex);
 	sctp->sock = sock;
