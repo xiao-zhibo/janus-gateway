@@ -315,11 +315,6 @@ int janus_websockets_init(janus_transport_callbacks *callback, const char *confi
 	struct lws_context_creation_info wscinfo;
 	memset(&wscinfo, 0, sizeof wscinfo);
 	wscinfo.options |= LWS_SERVER_OPTION_EXPLICIT_VHOSTS;
-	wsc = lws_create_context(&wscinfo);
-	if(wsc == NULL) {
-		JANUS_LOG(LOG_ERR, "Error creating libwebsockets context...\n");
-		return -1;	/* No point in keeping the plugin loaded */
-	}
 
 	/* We use vhosts on the same context to address both APIs, secure or not */
 	struct lws_vhost *wss = NULL, *swss = NULL,
@@ -437,6 +432,20 @@ int janus_websockets_init(janus_transport_callbacks *callback, const char *confi
 		if((pingpong_trigger && !pingpong_timeout) || (!pingpong_trigger && pingpong_timeout)) {
 			JANUS_LOG(LOG_WARN, "pingpong_trigger and pingpong_timeout not both set, ignoring...\n");
 		}
+#if LWS_LIBRARY_VERSION_MAJOR >= 2 && LWS_LIBRARY_VERSION_MINOR >= 1
+		if(pingpong_trigger > 0 && pingpong_timeout > 0) {
+			wscinfo.ws_ping_pong_interval = pingpong_trigger;
+			wscinfo.timeout_secs = pingpong_timeout;
+		}
+#endif
+
+		/* Create the base context */
+		wsc = lws_create_context(&wscinfo);
+		if(wsc == NULL) {
+			JANUS_LOG(LOG_ERR, "Error creating libwebsockets context...\n");
+			janus_config_destroy(config);
+			return -1;	/* No point in keeping the plugin loaded */
+		}
 
 		/* Setup the Janus API WebSockets server(s) */
 		item = janus_config_get_item_drilldown(config, "general", "ws");
@@ -473,12 +482,6 @@ int janus_websockets_init(janus_transport_callbacks *callback, const char *confi
 			info.gid = -1;
 			info.uid = -1;
 			info.options = 0;
-#if LWS_LIBRARY_VERSION_MAJOR >= 2 && LWS_LIBRARY_VERSION_MINOR >= 1
-			if(pingpong_trigger > 0 && pingpong_timeout > 0) {
-				info.ws_ping_pong_interval = pingpong_trigger;
-				info.timeout_secs = pingpong_timeout;
-			}
-#endif
 			/* Create the WebSocket context */
 			wss = lws_create_vhost(wsc, &info);
 			if(wss == NULL) {
@@ -536,12 +539,6 @@ int janus_websockets_init(janus_transport_callbacks *callback, const char *confi
 #else
 				info.options = 0;
 #endif
-#if LWS_LIBRARY_VERSION_MAJOR >= 2 && LWS_LIBRARY_VERSION_MINOR >= 1
-				if(pingpong_trigger > 0 && pingpong_timeout > 0) {
-					info.ws_ping_pong_interval = pingpong_trigger;
-					info.timeout_secs = pingpong_timeout;
-				}
-#endif
 				/* Create the secure WebSocket context */
 				swss = lws_create_vhost(wsc, &info);
 				if(swss == NULL) {
@@ -587,12 +584,6 @@ int janus_websockets_init(janus_transport_callbacks *callback, const char *confi
 			info.gid = -1;
 			info.uid = -1;
 			info.options = 0;
-#if LWS_LIBRARY_VERSION_MAJOR >= 2 && LWS_LIBRARY_VERSION_MINOR >= 1
-			if(pingpong_trigger > 0 && pingpong_timeout > 0) {
-				info.ws_ping_pong_interval = pingpong_trigger;
-				info.timeout_secs = pingpong_timeout;
-			}
-#endif
 			/* Create the WebSocket context */
 			admin_wss = lws_create_vhost(wsc, &info);
 			if(admin_wss == NULL) {
@@ -649,12 +640,6 @@ int janus_websockets_init(janus_transport_callbacks *callback, const char *confi
 				info.options = LWS_SERVER_OPTION_DO_SSL_GLOBAL_INIT;
 #else
 				info.options = 0;
-#endif
-#if LWS_LIBRARY_VERSION_MAJOR >= 2 && LWS_LIBRARY_VERSION_MINOR >= 1
-				if(pingpong_trigger > 0 && pingpong_timeout > 0) {
-					info.ws_ping_pong_interval = pingpong_trigger;
-					info.timeout_secs = pingpong_timeout;
-				}
 #endif
 				/* Create the secure WebSocket context */
 				admin_swss = lws_create_vhost(wsc, &info);
@@ -913,13 +898,15 @@ static int janus_websockets_common_callback(
 	switch(reason) {
 		case LWS_CALLBACK_ESTABLISHED: {
 			/* Is there any filtering we should apply? */
-			char name[256], ip[256];
+			char ip[256];
 #ifdef HAVE_LIBWEBSOCKETS_PEER_SIMPLE
-			lws_get_peer_simple(wsi, name, 256);
+			lws_get_peer_simple(wsi, ip, 256);
+			JANUS_LOG(LOG_VERB, "[%s-%p] WebSocket connection opened from %s\n", log_prefix, wsi, ip);
 #else
+			char name[256];
 			lws_get_peer_addresses(wsi, lws_get_socket_fd(wsi), name, 256, ip, 256);
-#endif
 			JANUS_LOG(LOG_VERB, "[%s-%p] WebSocket connection opened from %s by %s\n", log_prefix, wsi, ip, name);
+#endif
 			if(!janus_websockets_is_allowed(ip, admin)) {
 				JANUS_LOG(LOG_ERR, "[%s-%p] IP %s is unauthorized to connect to the WebSockets %s API interface\n", log_prefix, wsi, ip, admin ? "Admin" : "Janus");
 				/* Close the connection */
