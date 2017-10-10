@@ -7,6 +7,12 @@
     #安装boringssl可能更好？
 ```
 
+##  编译usrsctp。【option】如果打算使用自行修改的 srsrtcp 的话，可以卸载上一步安装的libusrsrtcp，然后执行以下步骤
+``` cd usrsctp/usrsctplib
+    ./bootstrap
+    ./configure --prefix=/usr/local && make && sudo make install
+```
+
 ##  安装 protobuf , 白板要用
 ``` 
     brew install protobuf protobuf-c
