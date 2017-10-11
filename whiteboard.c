@@ -96,10 +96,11 @@ int janus_whiteboard_parse_or_create_header_l(janus_whiteboard *whiteboard) {
 	whiteboard->scene_keyframes[0]->timestamp = 0;
 	whiteboard->scene_keyframe_maxnum = 1;
 
-	/*int keyframe_len = 0;
+	int keyframe_len = 0;
 	fseek(whiteboard->header_file, 0, SEEK_SET);
 
 	// 尝试解析数据到whiteboard->header，如果不成功则执行创建操作
+	size_t pkt_len, out_len = 0;
 	while(fread(&keyframe_len, sizeof(size_t), 1, whiteboard->header_file) == 1) {
 		char *buffer = g_malloc0(keyframe_len);
 		if (janus_whiteboard_read_packet_from_file_l(buffer, keyframe_len, whiteboard->header_file) < 0) {
@@ -109,16 +110,49 @@ int janus_whiteboard_parse_or_create_header_l(janus_whiteboard *whiteboard) {
 		}
 		Pb__KeyFrame *tmp_keyframe = pb__key_frame__unpack(NULL, keyframe_len, (const uint8_t*)buffer);
 		if (tmp_keyframe != NULL) {
-			//TODO seek to target and read the key frame.
-			Pb__KeyFrame *out = g_malloc0(sizeof(Pb__KeyFrame));
-			pb__key_frame__init(out);
-			out->offset    = tmp_keyframe->offset;
-			out->timestamp = tmp_keyframe->timestamp;
+			fseek(whiteboard->file, tmp_keyframe->offset, SEEK_SET);
+			if (fread(&pkt_len, sizeof(size_t), 1, whiteboard->file) == 1) {
+				char *buf = g_malloc0(pkt_len);
+				if (janus_whiteboard_read_packet_from_file_l(buf, pkt_len, whiteboard->file) < 0) {
+					JANUS_LOG(LOG_ERR, "Error happens when reading scene data packet from basefile: %s\n", whiteboard->filename);
+					g_free(buf);
+					return -1;
+				}
+
+				Pb__Package *package = pb__package__unpack(NULL, pkt_len, (const uint8_t*)buf);
+				if (package == NULL) {
+					JANUS_LOG(LOG_WARN, "Parse whiteboard scene data error.\n");
+					fseek(whiteboard->file, 0, SEEK_END);
+					g_free(buf);
+					return -1;
+				}
+
+				Pb__KeyFrame *next = g_malloc0(sizeof(Pb__KeyFrame));
+				pb__key_frame__init(next);
+				next->offset    = tmp_keyframe->offset;
+				next->timestamp = tmp_keyframe->timestamp;
+
+				// tianjia dao neicun zhong
+				int scene_index = package->scene;
+				Pb__KeyFrame **target_keyframe = &whiteboard->scene_keyframes[scene_index];
+				if (*target_keyframe != NULL) {
+					g_free(*target_keyframe);
+				}
+				*target_keyframe = next;
+				if (scene_index > whiteboard->scene_keyframe_maxnum) {
+					whiteboard->scene_keyframe_maxnum = scene_index + 1;//scene 从 0 开始
+				}
+
+				// remove tmp package
+				pb__package__free_unpacked(package, NULL);
+				g_free(buf);
+			}
 
 			pb__key_frame__free_unpacked(tmp_keyframe, NULL);
 		}
 		g_free(buffer);
-	}*/
+	}
+	fseek(whiteboard->file, 0, SEEK_END);
 	JANUS_LOG(LOG_HUGE, "Parse or create header success\n");
 
 	return 0;
