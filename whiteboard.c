@@ -496,7 +496,7 @@ janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboa
 			// 其他场景
 			Pb__Package **packages = g_malloc0(sizeof(Pb__Package*) * MAX_PACKET_CAPACITY);
 			int num = janus_whiteboard_scene_data_l(whiteboard, package->scene, packages);
-			janus_whiteboard_packed_data_l(packages, num, &(result.command_len));
+			janus_whiteboard_packed_data_l(packages, num, &result);
 			for (int i = 0; i < num; i ++) {
 				pb__package__free_unpacked(packages[i], NULL);
 			}
