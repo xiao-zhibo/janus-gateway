@@ -95,12 +95,13 @@ int janus_whiteboard_parse_or_create_header_l(janus_whiteboard *whiteboard) {
 	whiteboard->scene_keyframes[0]->offset = 0;
 	whiteboard->scene_keyframes[0]->timestamp = 0;
 	whiteboard->scene_keyframe_maxnum = 1;
+	whiteboard->scene                 = 0;
 
 	int keyframe_len = 0;
 	fseek(whiteboard->header_file, 0, SEEK_SET);
 
 	// 尝试解析数据到whiteboard->header，如果不成功则执行创建操作
-	size_t pkt_len, out_len = 0;
+	size_t pkt_len;
 	while(fread(&keyframe_len, sizeof(size_t), 1, whiteboard->header_file) == 1) {
 		char *buffer = g_malloc0(keyframe_len);
 		if (janus_whiteboard_read_packet_from_file_l(buffer, keyframe_len, whiteboard->header_file) < 0) {
@@ -132,7 +133,6 @@ int janus_whiteboard_parse_or_create_header_l(janus_whiteboard *whiteboard) {
 				next->offset    = tmp_keyframe->offset;
 				next->timestamp = tmp_keyframe->timestamp;
 
-				// tianjia dao neicun zhong
 				int scene_index = package->scene;
 				Pb__KeyFrame **target_keyframe = &whiteboard->scene_keyframes[scene_index];
 				if (*target_keyframe != NULL) {
@@ -142,6 +142,9 @@ int janus_whiteboard_parse_or_create_header_l(janus_whiteboard *whiteboard) {
 				if (scene_index > whiteboard->scene_keyframe_maxnum) {
 					whiteboard->scene_keyframe_maxnum = scene_index + 1;//scene 从 0 开始
 				}
+
+				// 更新scene_package_num,由于是从文件读入，因此最后一个关键帧就是代表上次白板的当前页
+				whiteboard->scene = scene_index;//TODO 需要保存最后一个场景吗？场景数据应该是最后一个的，而不应该是最后一个关键帧
 
 				// remove tmp package
 				pb__package__free_unpacked(package, NULL);
@@ -153,7 +156,7 @@ int janus_whiteboard_parse_or_create_header_l(janus_whiteboard *whiteboard) {
 		g_free(buffer);
 	}
 	fseek(whiteboard->file, 0, SEEK_END);
-	JANUS_LOG(LOG_HUGE, "Parse or create header success\n");
+	JANUS_LOG(LOG_HUGE, "--->Parse or create header success\n");
 
 	return 0;
 }
@@ -241,6 +244,7 @@ janus_whiteboard *janus_whiteboard_create(const char *dir, const char *filename,
     }
 	janus_mutex_init(&whiteboard->mutex);
 
+    //从文件恢复历史保存的白板数据
 	whiteboard->scene_packages = g_malloc0(sizeof(Pb__Package*) * MAX_PACKET_CAPACITY);
 	if (whiteboard->scene_packages) {
 	    whiteboard->scene_package_num = janus_whiteboard_scene_data_l(whiteboard, whiteboard->scene, whiteboard->scene_packages);
@@ -318,8 +322,13 @@ void janus_whiteboard_add_pkt_to_packages_l(Pb__Package** packages, size_t* pack
 		janus_whiteboard_remove_packets_l(packages, 0, *packages_len);
 		packages[0] = dst_pkg;
 		*packages_len = 1;
-	} else if (dst_pkg->type != KLPackageType_SceneData
-		    && dst_pkg->type != KLPackageType_SwitchScene) {
+	} else if (dst_pkg->type == KLPackageType_SwitchScene) {
+		// 只需要存一个占位
+		if (*packages_len == 0) {
+			packages[*packages_len] = dst_pkg;
+			(*packages_len) ++;
+		}
+	} else if (dst_pkg->type != KLPackageType_SceneData) {
 		// FIXME:Rison 有新的指令过来需要考虑这里. 过滤掉特殊指令
 		packages[*packages_len] = dst_pkg;
 		(*packages_len) ++;
@@ -502,8 +511,13 @@ janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboa
 	//if (package->type != KLPackageType_SceneData)// 此处无需考虑非scene data的情况，因为这种情况已在前面处理并返回
 
 	if (package->type == KLPackageType_KeyFrame || package->type == KLPackageType_CleanDraw) {
-	// 额外处理关键帧
+	    // 额外处理关键帧
 		janus_whiteboard_on_receive_keyframe_l(whiteboard, package);
+	} else if (package->type == KLPackageType_SwitchScene) {
+		// 切换到新页面或者新场景的数据为0也可以认为是关键帧
+		if (whiteboard->scene_package_num == 0) {
+			janus_whiteboard_on_receive_keyframe_l(whiteboard, package);
+		}
 	}
 
 	// 写入到文件记录保存
