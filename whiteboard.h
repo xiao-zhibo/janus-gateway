@@ -46,6 +46,8 @@ typedef struct janus_whiteboard {
 	/*! 坐标存scene, 指针指向相应的keyframe。用于快速定位筛选出符合的场景数据给回前端 */
 	Pb__KeyFrame **scene_keyframes;
 	int scene_keyframe_maxnum;
+
+	int64_t start_timestamp;
 	
 	/*! \brief Mutex to lock/unlock this whiteboard instance */ 
 	janus_mutex mutex;

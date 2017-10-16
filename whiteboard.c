@@ -1,5 +1,6 @@
 #include "whiteboard.h"
 #include <sys/stat.h>
+#include <sys/time.h>
 #include "debug.h"
 #include "utils.h"
 /*
@@ -26,6 +27,7 @@
 // FIXME:Rison: 使用队列可能更好维护
 
 /*! 本地函数，前置声明 */
+int64_t  janus_whiteboard_get_current_time_l(void);
 int      janus_whiteboard_read_packet_from_file_l(void* dst, size_t len, FILE *src_file);
 int      janus_whiteboard_write_packet_to_file_l(void* src, size_t len, FILE *dst_file);
 int      janus_whiteboard_remove_packets_l(Pb__Package** packages, int start_index, int len);
@@ -34,6 +36,13 @@ void     janus_whiteboard_add_pkt_to_packages_l(Pb__Package** packages, size_t* 
 void     janus_whiteboard_packed_data_l(Pb__Package **packages, int len, janus_whiteboard_result* result);
 int      janus_whiteboard_scene_data_l(janus_whiteboard *whiteboard, int scene, Pb__Package** packages);
 int      janus_whiteboard_on_receive_keyframe_l(janus_whiteboard *whiteboard, Pb__Package *package);
+int      janus_whiteboard_generate_and_save_l(janus_whiteboard *whiteboard);
+
+int64_t janus_whiteboard_get_current_time_l(void) {
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+	return (int64_t)tv.tv_sec * 1000 + tv.tv_usec / 1000;
+}
 
 /*! 从指定文件读取len字节到dst，
     @returns 正常读取返回 0，读取失败返回 -1 */
@@ -97,7 +106,7 @@ int janus_whiteboard_parse_or_create_header_l(janus_whiteboard *whiteboard) {
 	whiteboard->scene_keyframe_maxnum = 1;
 	whiteboard->scene                 = 0;
 
-	int keyframe_len = 0;
+	size_t keyframe_len = 0;
 	fseek(whiteboard->header_file, 0, SEEK_SET);
 
 	// 尝试解析数据到whiteboard->header，如果不成功则执行创建操作
@@ -155,8 +164,48 @@ int janus_whiteboard_parse_or_create_header_l(janus_whiteboard *whiteboard) {
 		}
 		g_free(buffer);
 	}
+
+	// 一直读到file的末尾，以得出最后页面所在的场景。用于恢复
+	if (whiteboard->scene >= 0 && whiteboard->scene_keyframes[whiteboard->scene] != NULL) {
+		fseek(whiteboard->file, whiteboard->scene_keyframes[whiteboard->scene]->offset, SEEK_SET);
+		Pb__Package *tmp_pkt = NULL;
+		while(fread(&pkt_len, sizeof(pkt_len), 1, whiteboard->file) == 1) {
+			char *buffer = g_malloc0(pkt_len);
+			if (buffer == NULL) {
+				JANUS_LOG(LOG_ERR, "Out of memory when alloc %zu bytes.\n", pkt_len);
+				break;
+			}
+			if (janus_whiteboard_read_packet_from_file_l(buffer, pkt_len, whiteboard->file) < 0) {
+				g_free(buffer);
+				JANUS_LOG(LOG_ERR, "Error happens when reading keyframe index packet from basefile: %s\n", whiteboard->filename);
+				break;
+			}
+
+			if (tmp_pkt != NULL) {
+				// 释放先前解包留下的packet
+				pb__package__free_unpacked(tmp_pkt, NULL);
+				tmp_pkt = NULL;
+			}
+			tmp_pkt = pb__package__unpack(NULL, pkt_len, (const uint8_t*)buffer);
+			if (tmp_pkt == NULL) {
+				JANUS_LOG(LOG_WARN, "Get an invalid packet when parse header\n");
+			}
+			g_free(buffer);
+		}
+		if (tmp_pkt != NULL) {
+			/* package 的 timestamp 是以毫秒为单位的持续时间，不是日期的时间戳 */
+			whiteboard->scene = tmp_pkt->scene;
+			whiteboard->start_timestamp = janus_whiteboard_get_current_time_l() - tmp_pkt->timestamp;
+		} else {
+			int64_t last_timestamp = whiteboard->scene_keyframes[whiteboard->scene]->timestamp;
+			whiteboard->start_timestamp = janus_whiteboard_get_current_time_l() - last_timestamp;
+		}
+	} else {
+		whiteboard->start_timestamp = janus_whiteboard_get_current_time_l();
+	}
+
 	fseek(whiteboard->file, 0, SEEK_END);
-	JANUS_LOG(LOG_HUGE, "--->Parse or create header success\n");
+	JANUS_LOG(LOG_INFO, "--->Parse or create header success\n");
 
 	return 0;
 }
@@ -471,6 +520,7 @@ janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboa
 		janus_mutex_unlock_nodebug(&whiteboard->mutex);
 		return result;
 	}
+	package->timestamp = janus_whiteboard_get_current_time_l() - whiteboard->start_timestamp;
 
 	if (package->type == KLPackageType_SwitchScene) {
 	// 切换白板场景
@@ -486,6 +536,13 @@ janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboa
 		if (whiteboard->scene_package_num < 0) {
 			JANUS_LOG(LOG_WARN, "Something wrong happens when fetching scene data with reselt %d\n", whiteboard->scene_package_num);
 			whiteboard->scene_package_num = 0;
+		}
+	} else if(package->type == KLPackageType_CleanDraw) {
+	// 清屏
+		if (whiteboard->scene == package->scene) {
+			janus_whiteboard_remove_packets_l(whiteboard->scene_packages, 0, whiteboard->scene_package_num);
+			whiteboard->scene_package_num = 0;
+			JANUS_LOG(LOG_INFO, "Get a clear screen command, clear local cache data now\n");
 		}
 	} else if (package->type == KLPackageType_SceneData) {
 	// 请求指定场景的白板数据
@@ -522,10 +579,19 @@ janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboa
 
 	// 写入到文件记录保存
 	fseek(whiteboard->file, 0, SEEK_END);
-	size_t ret = fwrite(&length, sizeof(size_t), 1, whiteboard->file);
+	size_t len = pb__package__get_packed_size(package);
+	size_t ret = fwrite(&len, sizeof(size_t), 1, whiteboard->file);
 	if (ret == 1) {
-	    ret = janus_whiteboard_write_packet_to_file_l((void*)buffer, length, whiteboard->file);
-	    ret = (ret==0) ? 1 : 0;//由于以上函数封装的关系，此处需要对返回的结果处理下 
+		void*  buf = g_malloc0(len);
+		if (buf != NULL) {
+			pb__package__pack(package, buf);
+			ret = janus_whiteboard_write_packet_to_file_l(buf, len, whiteboard->file);
+			g_free(buf);
+		} else {
+			JANUS_LOG(LOG_WARN, "Get packed size is 0 when saving packet to file\n");
+			ret = -1;
+		}
+		ret = (ret==0) ? 1 : 0;//由于以上函数封装的关系，此处需要对返回的结果处理下 
 	}
 	if (ret == 0) {
 		JANUS_LOG(LOG_ERR, "Error happens when saving scene data packet to basefile: %s\n", whiteboard->filename);
@@ -561,11 +627,102 @@ int janus_whiteboard_close(janus_whiteboard *whiteboard) {
 	return 0;
 }
 
+/*! 将header和data保存到一个文件
+    @returns 失败返回-1， 正常返回1 */
+int janus_whiteboard_generate_and_save_l(janus_whiteboard *whiteboard) {
+	if (!whiteboard || !whiteboard->header_file || !whiteboard->file)
+		return -1;
+	Pb__Header header;
+	pb__header__init(&header);
+	header.version     = 1;
+	header.duration    = janus_whiteboard_get_current_time_l() - whiteboard->start_timestamp;
+	header.n_keyframes = 0;
+	header.keyframes   = g_malloc0(sizeof(Pb__KeyFrame*) * MAX_PACKET_CAPACITY);
+
+	// 将header读取进内存
+	fseek(whiteboard->header_file, 0L, SEEK_SET);
+	size_t keyframe_len = 0;
+	while(fread(&keyframe_len, sizeof(keyframe_len), 1, whiteboard->header_file) == 1) {
+		char *buffer = g_malloc0(keyframe_len);
+		if (buffer == NULL) {
+			JANUS_LOG(LOG_ERR, "Oop, out of memory when alloc memory for saving headers.\n");
+			break;
+		}
+		if (janus_whiteboard_read_packet_from_file_l(buffer, keyframe_len, whiteboard->header_file) < 0) {
+			JANUS_LOG(LOG_ERR, "Error happens when reading keyframe index packet from basefile: %s\n", whiteboard->filename);
+			g_free(buffer);
+			break;
+		}
+		Pb__KeyFrame *tmp_keyframe = pb__key_frame__unpack(NULL, keyframe_len, (const uint8_t*)buffer);
+		if (tmp_keyframe != NULL) {
+			header.keyframes[header.n_keyframes] = tmp_keyframe;
+			header.n_keyframes ++;
+			if (header.n_keyframes >= MAX_PACKET_CAPACITY) {
+				JANUS_LOG(LOG_WARN, "Can not push more keyframes now. header is bigger than MAX_PACKET_CAPACITY:%d\n", MAX_PACKET_CAPACITY);
+				g_free(buffer);
+				break;
+			}
+		}
+		g_free(buffer);
+	}
+
+	const size_t file_len = 1024;
+	char file_name[file_len];
+	memset(file_name, 0, file_len);
+	if(whiteboard->dir) {
+		g_snprintf(file_name, file_len, "%s/%s", whiteboard->dir, whiteboard->filename);
+	} else {
+		g_snprintf(file_name, file_len, "%s", whiteboard->filename);
+	}
+	FILE *file = fopen(file_name, "ab+");
+	if (file != NULL) {
+		// 打包header
+		size_t header_len = pb__header__get_packed_size(&header);
+		size_t ret = fwrite(&header_len, sizeof(size_t), 1, file);
+		if (ret == 1) {
+			void * header_buf = g_malloc0(header_len);
+			if (header_len != 0 && header_buf == NULL) {
+				JANUS_LOG(LOG_ERR, "Oop, out of memory when alloc memory for saving headers.\n");
+				g_free(header.keyframes);
+				fclose(file);
+				return -1;
+			}
+			pb__header__pack(&header, header_buf);
+			g_free(header.keyframes);
+			header.n_keyframes = 0;
+			ret = janus_whiteboard_write_packet_to_file_l(header_buf, header_len, file);
+			g_free(header_buf);
+		}
+
+		// 从whiteboard->file复制数据
+		fseek(whiteboard->file, 0L, SEEK_SET);
+		size_t tmp_len = 1024*4;//4k
+		void*  tmp_buf = g_malloc0(tmp_len);
+		while(1) {
+			size_t read_len = fread(tmp_buf, sizeof(unsigned char), tmp_len, whiteboard->file);
+			if (read_len <= 0) {
+				JANUS_LOG(LOG_INFO, "Whiteboard save all data success.\n");
+				break;
+			}
+			if (janus_whiteboard_write_packet_to_file_l(tmp_buf, read_len, file) < 0) {
+				JANUS_LOG(LOG_WARN, "Error happens when saving whiteboard data.\n");
+				break;
+			}
+		}
+		g_free(tmp_buf);
+		fclose(file);
+		file = NULL;
+	}
+
+	return 1;
+}
+
 /*! 清理内部变量 */
 int janus_whiteboard_free(janus_whiteboard *whiteboard) {
 	if(!whiteboard)
 		return -1;
 	janus_whiteboard_close(whiteboard);
+	janus_whiteboard_generate_and_save_l(whiteboard);
 	janus_mutex_lock_nodebug(&whiteboard->mutex);
 	g_free(whiteboard->dir);
 	whiteboard->dir = NULL;
