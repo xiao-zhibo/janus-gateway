@@ -136,6 +136,7 @@ int janus_whiteboard_parse_or_create_header_l(janus_whiteboard *whiteboard) {
 				Pb__KeyFrame *next = g_malloc0(sizeof(Pb__KeyFrame));
 				pb__key_frame__init(next);
 				next->offset    = tmp_keyframe->offset;
+				next->scene     = tmp_keyframe->scene;
 				next->timestamp = tmp_keyframe->timestamp;
 
 				int scene_index = package->scene;
@@ -148,8 +149,8 @@ int janus_whiteboard_parse_or_create_header_l(janus_whiteboard *whiteboard) {
 					whiteboard->scene_keyframe_maxnum = scene_index + 1;//scene 从 0 开始
 				}
 
-				// 更新scene_package_num,由于是从文件读入，因此最后一个关键帧就是代表上次白板的当前页
-				whiteboard->scene = scene_index;//TODO 需要保存最后一个场景吗？场景数据应该是最后一个的，而不应该是最后一个关键帧
+				// 更新scene_package_num, 最后一个关键帧最接近上次白板的最后一页
+				whiteboard->scene = scene_index;
 
 				// remove tmp package
 				pb__package__free_unpacked(package, NULL);
@@ -445,6 +446,7 @@ int janus_whiteboard_on_receive_keyframe_l(janus_whiteboard *whiteboard, Pb__Pac
 	fseek(whiteboard->file, 0, SEEK_END);
 	pb__key_frame__init(next);
 	next->offset    = ftell(whiteboard->file);
+	next->scene     = package->scene;
 	next->timestamp = package->timestamp;
 
 	int scene_index = package->scene;
