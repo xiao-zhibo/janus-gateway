@@ -444,7 +444,7 @@ int janus_whiteboard_scene_data_l(janus_whiteboard *whiteboard, int scene, Pb__P
 }
 
 int janus_whiteboard_on_receive_keyframe_l(janus_whiteboard *whiteboard, Pb__Package *package) {
-	if (!whiteboard->file || !package)
+	if (!whiteboard->header_file || !package)
 		return -1;
 
 	if (package->scene < 0 || package->scene >= MAX_PACKET_CAPACITY) {
@@ -476,7 +476,7 @@ int janus_whiteboard_on_receive_keyframe_l(janus_whiteboard *whiteboard, Pb__Pac
 	/*! 将 keyframe 保存到文件 */
 	size_t length = pb__key_frame__get_packed_size(*target_keyframe);
 	void *buffer = g_malloc0(length);
-	if (buffer == NULL) {
+	if (length!= 0 && buffer == NULL) {
 		JANUS_LOG(LOG_WARN, "Save keyframe fail. Out of memory when allocating memory for tmp file buffer\n");
 		return -1;
 	}
@@ -708,7 +708,7 @@ int janus_whiteboard_generate_and_save_l(janus_whiteboard *whiteboard) {
 	while(fread(&keyframe_len, sizeof(keyframe_len), 1, whiteboard->header_file) == 1) {
 		char *buffer = g_malloc0(keyframe_len);
 		if (buffer == NULL) {
-			JANUS_LOG(LOG_ERR, "Oop, out of memory when alloc memory for saving headers.\n");
+			JANUS_LOG(LOG_ERR, "Oop, out of memory when alloc memory for reading keyframe file.\n");
 			break;
 		}
 		if (janus_whiteboard_read_packet_from_file_l(buffer, keyframe_len, whiteboard->header_file) < 0) {
