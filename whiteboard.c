@@ -779,8 +779,23 @@ int janus_whiteboard_generate_and_save_l(janus_whiteboard *whiteboard) {
 				return -1;
 			}
 			pb__header__pack(&header, header_buf);
+
+			// 及时腾出内存空间
+			size_t i;
+			for(i=0; i<header.n_keyframes; i++) {
+				if (header.keyframes[i] != NULL) {
+					pb__key_frame__free_unpacked(header.keyframes[i], NULL);
+					header.keyframes[i] = NULL;
+				}
+			}
 			g_free(header.keyframes);
 			header.n_keyframes = 0;
+			for (i=0; i<header.n_sceneindexs; i++) {
+				if (header.sceneindexs[i] != NULL) {
+					pb__scene_index__free_unpacked(header.sceneindexs[i], NULL);
+					header.sceneindexs[i] = NULL;
+				}
+			}
 			g_free(header.sceneindexs);
 			header.n_sceneindexs = 0;
 
