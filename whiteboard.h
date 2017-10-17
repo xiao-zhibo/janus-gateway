@@ -27,7 +27,7 @@ typedef enum {
     KLPackageType_KeyFrame
 } KLDataPackageType;
 
-#define MAX_PACKET_CAPACITY 10000
+#define MAX_PACKET_CAPACITY 100000
 
 /*! \brief Structure that represents a whiteboard */
 typedef struct janus_whiteboard {
