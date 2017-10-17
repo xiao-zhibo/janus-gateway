@@ -232,6 +232,51 @@ void   pb__key_frame__free_unpacked
   assert(message->base.descriptor == &pb__key_frame__descriptor);
   protobuf_c_message_free_unpacked ((ProtobufCMessage*)message, allocator);
 }
+void   pb__scene_index__init
+                     (Pb__SceneIndex         *message)
+{
+  static const Pb__SceneIndex init_value = PB__SCENE_INDEX__INIT;
+  *message = init_value;
+}
+size_t pb__scene_index__get_packed_size
+                     (const Pb__SceneIndex *message)
+{
+  assert(message->base.descriptor == &pb__scene_index__descriptor);
+  return protobuf_c_message_get_packed_size ((const ProtobufCMessage*)(message));
+}
+size_t pb__scene_index__pack
+                     (const Pb__SceneIndex *message,
+                      uint8_t       *out)
+{
+  assert(message->base.descriptor == &pb__scene_index__descriptor);
+  return protobuf_c_message_pack ((const ProtobufCMessage*)message, out);
+}
+size_t pb__scene_index__pack_to_buffer
+                     (const Pb__SceneIndex *message,
+                      ProtobufCBuffer *buffer)
+{
+  assert(message->base.descriptor == &pb__scene_index__descriptor);
+  return protobuf_c_message_pack_to_buffer ((const ProtobufCMessage*)message, buffer);
+}
+Pb__SceneIndex *
+       pb__scene_index__unpack
+                     (ProtobufCAllocator  *allocator,
+                      size_t               len,
+                      const uint8_t       *data)
+{
+  return (Pb__SceneIndex *)
+     protobuf_c_message_unpack (&pb__scene_index__descriptor,
+                                allocator, len, data);
+}
+void   pb__scene_index__free_unpacked
+                     (Pb__SceneIndex *message,
+                      ProtobufCAllocator *allocator)
+{
+  if(!message)
+    return;
+  assert(message->base.descriptor == &pb__scene_index__descriptor);
+  protobuf_c_message_free_unpacked ((ProtobufCMessage*)message, allocator);
+}
 void   pb__header__init
                      (Pb__Header         *message)
 {
@@ -611,7 +656,7 @@ const ProtobufCMessageDescriptor pb__package__descriptor =
   (ProtobufCMessageInit) pb__package__init,
   NULL,NULL,NULL    /* reserved[123] */
 };
-static const ProtobufCFieldDescriptor pb__key_frame__field_descriptors[2] =
+static const ProtobufCFieldDescriptor pb__key_frame__field_descriptors[3] =
 {
   {
     "offset",
@@ -626,8 +671,20 @@ static const ProtobufCFieldDescriptor pb__key_frame__field_descriptors[2] =
     0,NULL,NULL    /* reserved1,reserved2, etc */
   },
   {
-    "timestamp",
+    "scene",
     2,
+    PROTOBUF_C_LABEL_NONE,
+    PROTOBUF_C_TYPE_INT32,
+    0,   /* quantifier_offset */
+    offsetof(Pb__KeyFrame, scene),
+    NULL,
+    NULL,
+    0,             /* flags */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
+  {
+    "timestamp",
+    3,
     PROTOBUF_C_LABEL_NONE,
     PROTOBUF_C_TYPE_INT64,
     0,   /* quantifier_offset */
@@ -640,12 +697,13 @@ static const ProtobufCFieldDescriptor pb__key_frame__field_descriptors[2] =
 };
 static const unsigned pb__key_frame__field_indices_by_name[] = {
   0,   /* field[0] = offset */
-  1,   /* field[1] = timestamp */
+  1,   /* field[1] = scene */
+  2,   /* field[2] = timestamp */
 };
 static const ProtobufCIntRange pb__key_frame__number_ranges[1 + 1] =
 {
   { 1, 0 },
-  { 0, 2 }
+  { 0, 3 }
 };
 const ProtobufCMessageDescriptor pb__key_frame__descriptor =
 {
@@ -655,14 +713,65 @@ const ProtobufCMessageDescriptor pb__key_frame__descriptor =
   "Pb__KeyFrame",
   "pb",
   sizeof(Pb__KeyFrame),
-  2,
+  3,
   pb__key_frame__field_descriptors,
   pb__key_frame__field_indices_by_name,
   1,  pb__key_frame__number_ranges,
   (ProtobufCMessageInit) pb__key_frame__init,
   NULL,NULL,NULL    /* reserved[123] */
 };
-static const ProtobufCFieldDescriptor pb__header__field_descriptors[3] =
+static const ProtobufCFieldDescriptor pb__scene_index__field_descriptors[2] =
+{
+  {
+    "scene",
+    1,
+    PROTOBUF_C_LABEL_NONE,
+    PROTOBUF_C_TYPE_INT32,
+    0,   /* quantifier_offset */
+    offsetof(Pb__SceneIndex, scene),
+    NULL,
+    NULL,
+    0,             /* flags */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
+  {
+    "timestamp",
+    2,
+    PROTOBUF_C_LABEL_NONE,
+    PROTOBUF_C_TYPE_INT32,
+    0,   /* quantifier_offset */
+    offsetof(Pb__SceneIndex, timestamp),
+    NULL,
+    NULL,
+    0,             /* flags */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
+};
+static const unsigned pb__scene_index__field_indices_by_name[] = {
+  0,   /* field[0] = scene */
+  1,   /* field[1] = timestamp */
+};
+static const ProtobufCIntRange pb__scene_index__number_ranges[1 + 1] =
+{
+  { 1, 0 },
+  { 0, 2 }
+};
+const ProtobufCMessageDescriptor pb__scene_index__descriptor =
+{
+  PROTOBUF_C__MESSAGE_DESCRIPTOR_MAGIC,
+  "pb.SceneIndex",
+  "SceneIndex",
+  "Pb__SceneIndex",
+  "pb",
+  sizeof(Pb__SceneIndex),
+  2,
+  pb__scene_index__field_descriptors,
+  pb__scene_index__field_indices_by_name,
+  1,  pb__scene_index__number_ranges,
+  (ProtobufCMessageInit) pb__scene_index__init,
+  NULL,NULL,NULL    /* reserved[123] */
+};
+static const ProtobufCFieldDescriptor pb__header__field_descriptors[4] =
 {
   {
     "version",
@@ -700,16 +809,29 @@ static const ProtobufCFieldDescriptor pb__header__field_descriptors[3] =
     0,             /* flags */
     0,NULL,NULL    /* reserved1,reserved2, etc */
   },
+  {
+    "sceneindexs",
+    4,
+    PROTOBUF_C_LABEL_REPEATED,
+    PROTOBUF_C_TYPE_MESSAGE,
+    offsetof(Pb__Header, n_sceneindexs),
+    offsetof(Pb__Header, sceneindexs),
+    &pb__scene_index__descriptor,
+    NULL,
+    0,             /* flags */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
 };
 static const unsigned pb__header__field_indices_by_name[] = {
   1,   /* field[1] = duration */
   2,   /* field[2] = keyframes */
+  3,   /* field[3] = sceneindexs */
   0,   /* field[0] = version */
 };
 static const ProtobufCIntRange pb__header__number_ranges[1 + 1] =
 {
   { 1, 0 },
-  { 0, 3 }
+  { 0, 4 }
 };
 const ProtobufCMessageDescriptor pb__header__descriptor =
 {
@@ -719,7 +841,7 @@ const ProtobufCMessageDescriptor pb__header__descriptor =
   "Pb__Header",
   "pb",
   sizeof(Pb__Header),
-  3,
+  4,
   pb__header__field_descriptors,
   pb__header__field_indices_by_name,
   1,  pb__header__number_ranges,

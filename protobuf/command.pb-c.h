@@ -20,6 +20,7 @@ typedef struct _Pb__Point Pb__Point;
 typedef struct _Pb__Line Pb__Line;
 typedef struct _Pb__Package Pb__Package;
 typedef struct _Pb__KeyFrame Pb__KeyFrame;
+typedef struct _Pb__SceneIndex Pb__SceneIndex;
 typedef struct _Pb__Header Pb__Header;
 
 
@@ -89,10 +90,22 @@ struct  _Pb__KeyFrame
 {
   ProtobufCMessage base;
   int32_t offset;
+  int32_t scene;
   int64_t timestamp;
 };
 #define PB__KEY_FRAME__INIT \
  { PROTOBUF_C_MESSAGE_INIT (&pb__key_frame__descriptor) \
+    , 0, 0, 0 }
+
+
+struct  _Pb__SceneIndex
+{
+  ProtobufCMessage base;
+  int32_t scene;
+  int32_t timestamp;
+};
+#define PB__SCENE_INDEX__INIT \
+ { PROTOBUF_C_MESSAGE_INIT (&pb__scene_index__descriptor) \
     , 0, 0 }
 
 
@@ -103,10 +116,12 @@ struct  _Pb__Header
   int32_t duration;
   size_t n_keyframes;
   Pb__KeyFrame **keyframes;
+  size_t n_sceneindexs;
+  Pb__SceneIndex **sceneindexs;
 };
 #define PB__HEADER__INIT \
  { PROTOBUF_C_MESSAGE_INIT (&pb__header__descriptor) \
-    , 0, 0, 0,NULL }
+    , 0, 0, 0,NULL, 0,NULL }
 
 
 /* Pb__Command methods */
@@ -204,6 +219,25 @@ Pb__KeyFrame *
 void   pb__key_frame__free_unpacked
                      (Pb__KeyFrame *message,
                       ProtobufCAllocator *allocator);
+/* Pb__SceneIndex methods */
+void   pb__scene_index__init
+                     (Pb__SceneIndex         *message);
+size_t pb__scene_index__get_packed_size
+                     (const Pb__SceneIndex   *message);
+size_t pb__scene_index__pack
+                     (const Pb__SceneIndex   *message,
+                      uint8_t             *out);
+size_t pb__scene_index__pack_to_buffer
+                     (const Pb__SceneIndex   *message,
+                      ProtobufCBuffer     *buffer);
+Pb__SceneIndex *
+       pb__scene_index__unpack
+                     (ProtobufCAllocator  *allocator,
+                      size_t               len,
+                      const uint8_t       *data);
+void   pb__scene_index__free_unpacked
+                     (Pb__SceneIndex *message,
+                      ProtobufCAllocator *allocator);
 /* Pb__Header methods */
 void   pb__header__init
                      (Pb__Header         *message);
@@ -240,6 +274,9 @@ typedef void (*Pb__Package_Closure)
 typedef void (*Pb__KeyFrame_Closure)
                  (const Pb__KeyFrame *message,
                   void *closure_data);
+typedef void (*Pb__SceneIndex_Closure)
+                 (const Pb__SceneIndex *message,
+                  void *closure_data);
 typedef void (*Pb__Header_Closure)
                  (const Pb__Header *message,
                   void *closure_data);
@@ -254,6 +291,7 @@ extern const ProtobufCMessageDescriptor pb__point__descriptor;
 extern const ProtobufCMessageDescriptor pb__line__descriptor;
 extern const ProtobufCMessageDescriptor pb__package__descriptor;
 extern const ProtobufCMessageDescriptor pb__key_frame__descriptor;
+extern const ProtobufCMessageDescriptor pb__scene_index__descriptor;
 extern const ProtobufCMessageDescriptor pb__header__descriptor;
 
 PROTOBUF_C__END_DECLS

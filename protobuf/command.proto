@@ -33,11 +33,19 @@ message Package {
 
 message KeyFrame {
     int32 offset = 1;
-    int64 timestamp = 2;
+    int32 scene = 2;
+    int64 timestamp = 3;
+}
+
+message SceneIndex {
+    int32 scene = 1;
+    int32 timestamp = 2;
 }
 
 message Header {
     int32 version = 1;
     int32 duration = 2;
     repeated KeyFrame keyframes = 3;
+    repeated SceneIndex sceneindexs = 4;
 }
+
