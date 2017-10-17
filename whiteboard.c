@@ -730,7 +730,7 @@ int janus_whiteboard_generate_and_save_l(janus_whiteboard *whiteboard) {
 	}
 
 	// 将switch scene读进内存
-	fseek(whiteboard->header_file, 0L, SEEK_SET);
+	fseek(whiteboard->scene_file, 0L, SEEK_SET);
 	size_t switchscene_len = 0;
 	while(fread(&switchscene_len, sizeof(switchscene_len), 1, whiteboard->scene_file) == 1) {
 		char *buffer = g_malloc0(switchscene_len);
