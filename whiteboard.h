@@ -37,6 +37,8 @@ typedef struct janus_whiteboard {
 	char *filename;
 	/*! \brief whiteboard header file */
 	FILE *header_file;
+	/*! \brief whiteboard scitch scene index */
+	FILE *scene_file;
 	/*! \brief whiteboard data file */
 	FILE *file;
 	

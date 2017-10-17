@@ -36,6 +36,7 @@ void     janus_whiteboard_add_pkt_to_packages_l(Pb__Package** packages, size_t* 
 void     janus_whiteboard_packed_data_l(Pb__Package **packages, int len, janus_whiteboard_result* result);
 int      janus_whiteboard_scene_data_l(janus_whiteboard *whiteboard, int scene, Pb__Package** packages);
 int      janus_whiteboard_on_receive_keyframe_l(janus_whiteboard *whiteboard, Pb__Package *package);
+int      janus_whiteboard_on_receive_switch_scene_l(janus_whiteboard *whiteboard, Pb__Package *package);
 int      janus_whiteboard_generate_and_save_l(janus_whiteboard *whiteboard);
 
 int64_t janus_whiteboard_get_current_time_l(void) {
@@ -202,6 +203,7 @@ int janus_whiteboard_parse_or_create_header_l(janus_whiteboard *whiteboard) {
 	}
 
 	fseek(whiteboard->file, 0, SEEK_END);
+	fseek(whiteboard->scene_file, 0, SEEK_END);
 	JANUS_LOG(LOG_INFO, "--->Parse or create header success\n");
 
 	return 0;
@@ -252,19 +254,23 @@ janus_whiteboard *janus_whiteboard_create(const char *dir, const char *filename,
 
 	const size_t name_length_l = 1024;
 	/* generate filename */
-	char data_file_name[name_length_l], header_file_name[name_length_l];
+	char data_file_name[name_length_l], header_file_name[name_length_l], scene_file_name[name_length_l];
 	memset(data_file_name,   0, name_length_l);
 	memset(header_file_name, 0, name_length_l);
+	memset(scene_file_name,  0, name_length_l);
 	g_snprintf(data_file_name,   name_length_l, "%s.data", filename);
 	g_snprintf(header_file_name, name_length_l, "%s.head", filename);
+	g_snprintf(scene_file_name, name_length_l, "%s.scene", filename);
 	/* generate path name */
-	char dir_local[name_length_l], data_path[name_length_l], header_path[name_length_l];
+	char dir_local[name_length_l], data_path[name_length_l], header_path[name_length_l], scene_path[name_length_l];
 	memset(dir_local,   0, name_length_l);
 	memset(data_path,   0, name_length_l);
 	memset(header_path, 0, name_length_l);
+	memset(scene_path,  0, name_length_l);
 	g_snprintf(dir_local,   name_length_l, "%s", dir == NULL ? "" : dir);
 	g_snprintf(data_path,   name_length_l, "%s/%s", dir_local, data_file_name);
 	g_snprintf(header_path, name_length_l, "%s/%s", dir_local, header_file_name);
+	g_snprintf(scene_path,  name_length_l, "%s/%s", dir_local, scene_file_name);
 
 	/* Try opening the data file */
 	whiteboard->file = fopen(data_path, "ab+");
@@ -278,6 +284,14 @@ janus_whiteboard *janus_whiteboard_create(const char *dir, const char *filename,
 		/* avoid memory leak */
 		fclose(whiteboard->file);
 		JANUS_LOG(LOG_ERR, "fopen %s error: %d\n", header_path, errno);
+		return NULL;
+	}
+	/* Try opening the scene index file */
+	whiteboard->scene_file = fopen(scene_path, "ab+");
+	if (whiteboard->scene_file == NULL) {
+		fclose(whiteboard->file);
+		fclose(whiteboard->header_file);
+		JANUS_LOG(LOG_ERR, "fopen %s error: %d\n", scene_path, errno);
 		return NULL;
 	}
 	if(dir)
@@ -482,6 +496,38 @@ int janus_whiteboard_on_receive_keyframe_l(janus_whiteboard *whiteboard, Pb__Pac
 	return 0;
 }
 
+/*! 将用户发过来的switch scene存起来，用于回访的时候快速定位 */
+int janus_whiteboard_on_receive_switch_scene_l(janus_whiteboard *whiteboard, Pb__Package *package) {
+	if (!whiteboard->scene_file || !package)
+		return -1;
+	if (package->scene < 0 || package->scene >= MAX_PACKET_CAPACITY) {
+		JANUS_LOG(LOG_WARN, "Out of index on saving switch scene package, it's is %d\n", package->scene);
+	}
+
+	Pb__SceneIndex nextScene;
+	pb__scene_index__init(&nextScene);
+	nextScene.scene     = package->scene;
+	nextScene.timestamp = package->timestamp;
+	size_t length = pb__scene_index__get_packed_size(&nextScene);
+	void *buffer = g_malloc0(length);
+	if (length != 0 && buffer == NULL) {
+		JANUS_LOG(LOG_ERR, "Out of memory when allocating memory for tmp switch scene index buffer\n");
+		return -1;
+	}
+	pb__scene_index__pack(&nextScene, buffer);
+	size_t ret = fwrite(&length, sizeof(length), 1, whiteboard->scene_file);
+	if (ret == 1) {
+		ret = janus_whiteboard_write_packet_to_file_l(buffer, length, whiteboard->scene_file);
+		ret = (ret==0) ? 1 : 0;
+	}
+	if (ret == 0) {
+		JANUS_LOG(LOG_ERR, "Error happens when saving switch scene index to basefile: %s\n", whiteboard->filename);
+		return -1;
+	}
+
+	return 0;
+}
+
 /*! 核心函数
     本函数尝试以白板数据进行解包，对 场景切换，获取场景数据进行额外处理。其余情况正常保存。
     //FIXME:Rison 是否需要保存场景切换这些包，因为回访也需要用到?
@@ -528,6 +574,7 @@ janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboa
 		    result.ret = 0;
 			return result;
 		}
+		janus_whiteboard_on_receive_switch_scene_l(whiteboard, package);
 		whiteboard->scene = package->scene;
 		janus_whiteboard_remove_packets_l(whiteboard->scene_packages, 0, whiteboard->scene_package_num);
 		whiteboard->scene_package_num = janus_whiteboard_scene_data_l(whiteboard, whiteboard->scene, whiteboard->scene_packages);
@@ -624,6 +671,11 @@ int janus_whiteboard_close(janus_whiteboard *whiteboard) {
 		size_t fsize = ftell(whiteboard->header_file);
 		JANUS_LOG(LOG_INFO, "whiteboard header file is %zu bytes: %s\n", fsize, whiteboard->filename);
 	}
+	if (whiteboard->scene_file) {
+		fseek(whiteboard->scene_file, 0L, SEEK_END);
+		size_t fsize = ftell(whiteboard->scene_file);
+		JANUS_LOG(LOG_INFO, "whiteboard scene file is %zu bytes: %s\n", fsize, whiteboard->filename);
+	}
 	janus_mutex_unlock_nodebug(&whiteboard->mutex);
 	return 0;
 }
@@ -639,8 +691,18 @@ int janus_whiteboard_generate_and_save_l(janus_whiteboard *whiteboard) {
 	header.duration    = janus_whiteboard_get_current_time_l() - whiteboard->start_timestamp;
 	header.n_keyframes = 0;
 	header.keyframes   = g_malloc0(sizeof(Pb__KeyFrame*) * MAX_PACKET_CAPACITY);
+	if (header.keyframes == NULL) {
+		JANUS_LOG(LOG_ERR, "Oop, out of memory when alloc memory for creating header.keyframes\n");
+		return -1;
+	}
+	header.n_sceneindexs = 0;
+	header.sceneindexs   = g_malloc0(sizeof(Pb__SceneIndex*) * MAX_PACKET_CAPACITY);
+	if (header.sceneindexs == NULL) {
+		JANUS_LOG(LOG_ERR, "Oop, out of memory when alloc memory for creating header.sceneindexs\n");
+		return -1;
+	}
 
-	// 将header读取进内存
+	// 将keyframe读取进内存
 	fseek(whiteboard->header_file, 0L, SEEK_SET);
 	size_t keyframe_len = 0;
 	while(fread(&keyframe_len, sizeof(keyframe_len), 1, whiteboard->header_file) == 1) {
@@ -667,6 +729,34 @@ int janus_whiteboard_generate_and_save_l(janus_whiteboard *whiteboard) {
 		g_free(buffer);
 	}
 
+	// 将switch scene读进内存
+	fseek(whiteboard->header_file, 0L, SEEK_SET);
+	size_t switchscene_len = 0;
+	while(fread(&switchscene_len, sizeof(switchscene_len), 1, whiteboard->scene_file) == 1) {
+		char *buffer = g_malloc0(switchscene_len);
+		if (buffer == NULL) {
+			JANUS_LOG(LOG_ERR, "Oop, out of memory when alloc memory for reading scene file\n");
+			break;
+		}
+		if (janus_whiteboard_read_packet_from_file_l(buffer, switchscene_len, whiteboard->scene_file) < 0) {
+			JANUS_LOG(LOG_ERR, "Error happens when reading switch scene index packet from basefile: %s\n", whiteboard->filename);
+			g_free(buffer);
+			break;
+		}
+		Pb__SceneIndex *tmp_switchscene = pb__scene_index__unpack(NULL, switchscene_len, (const uint8_t*)buffer);
+		if (tmp_switchscene != NULL) {
+			header.sceneindexs[header.n_sceneindexs] = tmp_switchscene;
+			header.n_sceneindexs ++;
+			if (header.n_sceneindexs >= MAX_PACKET_CAPACITY) {
+				JANUS_LOG(LOG_WARN, "Can't push more switchscene package now. it is bigger than MAX_PACKET_CAPACITY:%d\n", MAX_PACKET_CAPACITY);
+				g_free(buffer);
+				break;
+			}
+		}
+		g_free(buffer);
+	}
+
+	// 输出到文件
 	const size_t file_len = 1024;
 	char file_name[file_len];
 	memset(file_name, 0, file_len);
@@ -691,6 +781,9 @@ int janus_whiteboard_generate_and_save_l(janus_whiteboard *whiteboard) {
 			pb__header__pack(&header, header_buf);
 			g_free(header.keyframes);
 			header.n_keyframes = 0;
+			g_free(header.sceneindexs);
+			header.n_sceneindexs = 0;
+
 			ret = janus_whiteboard_write_packet_to_file_l(header_buf, header_len, file);
 			g_free(header_buf);
 		}
@@ -729,6 +822,8 @@ int janus_whiteboard_free(janus_whiteboard *whiteboard) {
 	whiteboard->dir = NULL;
 	g_free(whiteboard->filename);
 	whiteboard->filename = NULL;
+	fclose(whiteboard->scene_file);
+	whiteboard->scene_file = NULL;
 	fclose(whiteboard->header_file);
 	whiteboard->header_file = NULL;
 	fclose(whiteboard->file);
