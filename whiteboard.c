@@ -98,12 +98,8 @@ int janus_whiteboard_parse_or_create_header_l(janus_whiteboard *whiteboard) {
 	if(!whiteboard || !whiteboard->header_file)
 		return -1;
 
-	whiteboard->scene_keyframes    = g_malloc0(sizeof(Pb__KeyFrame*) * MAX_PACKET_CAPACITY);
-	whiteboard->scene_keyframes[0] = g_malloc0(sizeof(Pb__KeyFrame));
-	pb__key_frame__init(whiteboard->scene_keyframes[0]);
-	whiteboard->scene_keyframes[0]->offset = 0;
-	whiteboard->scene_keyframes[0]->timestamp = 0;
-	whiteboard->scene_keyframe_maxnum = 1;
+	whiteboard->scene_keyframes       = g_malloc0(sizeof(Pb__KeyFrame*) * MAX_PACKET_CAPACITY);
+	whiteboard->scene_keyframe_maxnum = 0;
 	whiteboard->scene                 = 0;
 
 	size_t keyframe_len = 0;
@@ -457,7 +453,7 @@ int janus_whiteboard_on_receive_keyframe_l(janus_whiteboard *whiteboard, Pb__Pac
 		g_free(*target_keyframe);
 	}
 	*target_keyframe = next;
-	if (scene_index > whiteboard->scene_keyframe_maxnum) {
+	if (scene_index >= whiteboard->scene_keyframe_maxnum) {
 	    whiteboard->scene_keyframe_maxnum = scene_index + 1;//scene 从 0 开始
 	}
 
@@ -575,6 +571,9 @@ janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboa
 		if (whiteboard->scene_package_num == 0) {
 			janus_whiteboard_on_receive_keyframe_l(whiteboard, package);
 		}
+	} else if (whiteboard->scene_keyframe_maxnum == 0) {
+		// 修复第一个包不是关键帧的问题
+		janus_whiteboard_on_receive_keyframe_l(whiteboard, package);
 	}
 
 	// 写入到文件记录保存
