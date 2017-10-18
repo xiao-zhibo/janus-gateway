@@ -35,8 +35,9 @@
 ##  编译 janus
 ``` sh autogen.sh
     PKG_CONFIG_PATH=/usr/local/pkgconfig
-    ./configure --prefix=/usr/local/janus --enable-docs
-    #或者使用这些参数更好 ./configure --prefix=/usr/local/janus --enable-docs --enable-libsrtp2 --disable-all-plugins --enable-plugin-videoroom --enable-plugin-recordplay --disable-all-transports --enable-rest --enable-websockets --disable-post-processing
+    ./configure --prefix=/usr/local/janus --disable-docs
+    #开启post-processing要求安装ffmpeg。configure&make&make install
+    #或者使用这些参数更好 ./configure --prefix=/usr/local/janus --disable-docs --enable-libsrtp2 --disable-all-plugins --enable-plugin-videoroom --enable-plugin-recordplay --disable-all-transports --enable-rest --enable-websockets --enable-post-processing
     make
     sudo make install
     sudo make configs
