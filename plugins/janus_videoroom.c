@@ -2965,8 +2965,8 @@ static void janus_videoroom_recorder_create(janus_videoroom_participant *partici
 			}
 		} else {
 			/* Build a filename */
-			g_snprintf(filename, 255, "videoroom-%"SCNu64"-user-%"SCNu64"-%"SCNi64"-audio",
-				participant->room->room_id, participant->user_id, now);
+			g_snprintf(filename, 255, "videoroom-%"SCNu64"-%"SCNi64"-%"SCNu64"-audio-user",
+				participant->room->room_id, now, participant->user_id);
 			participant->arc = janus_recorder_create(participant->room->rec_dir,
 				janus_videoroom_audiocodec_name(participant->room->acodec), filename);
 			if(participant->arc == NULL) {
@@ -2986,8 +2986,8 @@ static void janus_videoroom_recorder_create(janus_videoroom_participant *partici
 			}
 		} else {
 			/* Build a filename */
-			g_snprintf(filename, 255, "videoroom-%"SCNu64"-user-%"SCNu64"-%"SCNi64"-video",
-				participant->room->room_id, participant->user_id, now);
+			g_snprintf(filename, 255, "videoroom-%"SCNi64"-%"SCNu64"-%"SCNu64"-video-user",
+				participant->room->room_id, now, participant->user_id);
 			participant->vrc = janus_recorder_create(participant->room->rec_dir,
 				janus_videoroom_videocodec_name(participant->room->vcodec), filename);
 			if(participant->vrc == NULL) {
@@ -3007,8 +3007,8 @@ static void janus_videoroom_recorder_create(janus_videoroom_participant *partici
 			}
 		} else {
 			/* Build a filename */
-			g_snprintf(filename, 255, "videoroom-%"SCNu64"-user-%"SCNu64"-%"SCNi64"-data",
-				participant->room->room_id, participant->user_id, now);
+			g_snprintf(filename, 255, "videoroom-%"SCNu64"-%"SCNi64"-%"SCNu64"-data-user",
+				participant->room->room_id, now, participant->user_id);
 			participant->drc = janus_recorder_create(participant->room->rec_dir,
 				"text", filename);
 			if(participant->drc == NULL) {
@@ -3016,11 +3016,13 @@ static void janus_videoroom_recorder_create(janus_videoroom_participant *partici
 			}
 		}
 	}
+	// FIXME:Rison 需做点什么方便白板与声音同步？
 	if (participant->room->whiteboard == NULL) {
-		g_snprintf(filename, 255, "videoroom-%"SCNu64"-%"SCNi64"-data", participant->room->room_id, now);
+		JANUS_LOG(LOG_INFO, "--->videoRoom:%"SCNu64" is preparing to create a whiteboard recorder.\n", participant->room->room_id);
+		g_snprintf(filename, 255, "videoroom-%"SCNu64"-%"SCNi64"-whiteboard", participant->room->room_id, now);
 		participant->room->whiteboard = janus_whiteboard_create(participant->room->rec_dir, filename, 0);
 		if(participant->room->whiteboard == NULL) {
-			JANUS_LOG(LOG_ERR, "Couldn't open an data recording file for this room!\n");
+			JANUS_LOG(LOG_ERR, "Couldn't open an data recording file for this room! Try to create next time if another audio joins.\n");
 		}
 	}
 }
