@@ -96,8 +96,7 @@ sp___amix="[0]"
 for ((i=1; i<${index}; i++)) ; do
 	sp___amix="${sp___amix}[s${i}]"
 done
-#发现部分版本不支持此参数:dropout_trnsition=1
-sp___amix="${sp___amix}amix=inputs=${index}:duration=longest"
+sp___amix="${sp___amix}amix=inputs=${index}:duration=longest:dropout_transition=1"
 sp_output="videoroom-${videoroom}-${starttime}-audio-mix.mp3"
 sp_prefix="ffmpeg "
 spcommand="ffmpeg ${sp_inputs} ${sp_filter}${sp___amix} ${sp_output}"
