@@ -325,12 +325,12 @@ void   pb__header__free_unpacked
 static const ProtobufCFieldDescriptor pb__command__field_descriptors[7] =
 {
   {
-    "timestamp",
+    "shape",
     1,
     PROTOBUF_C_LABEL_NONE,
     PROTOBUF_C_TYPE_INT32,
     0,   /* quantifier_offset */
-    offsetof(Pb__Command, timestamp),
+    offsetof(Pb__Command, shape),
     NULL,
     NULL,
     0,             /* flags */
@@ -412,7 +412,7 @@ static const ProtobufCFieldDescriptor pb__command__field_descriptors[7] =
 static const unsigned pb__command__field_indices_by_name[] = {
   1,   /* field[1] = cmd */
   5,   /* field[5] = color */
-  0,   /* field[0] = timestamp */
+  0,   /* field[0] = shape */
   6,   /* field[6] = user */
   4,   /* field[4] = w */
   2,   /* field[2] = x */

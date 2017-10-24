@@ -32,7 +32,7 @@ typedef struct _Pb__Header Pb__Header;
 struct  _Pb__Command
 {
   ProtobufCMessage base;
-  int32_t timestamp;
+  int32_t shape;
   int32_t cmd;
   double x;
   double y;
