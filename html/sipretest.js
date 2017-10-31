@@ -50,7 +50,7 @@ else
 
 var janus = null;
 var sipcall = null;
-var opaqueId = "siptest-"+Janus.randomString(12);
+var opaqueId = "sipretest-"+Janus.randomString(12);
 
 var started = false;
 var spinner = null;
@@ -83,7 +83,7 @@ $(document).ready(function() {
 						// Attach to echo test plugin
 						janus.attach(
 							{
-								plugin: "janus.plugin.sip",
+								plugin: "janus.plugin.sipre",
 								opaqueId: opaqueId,
 								success: function(pluginHandle) {
 									$('#details').remove();
@@ -103,9 +103,6 @@ $(document).ready(function() {
 										switch(selectedApproach) {
 											case "secret":
 												bootbox.alert("Using this approach you'll provide a plain secret to REGISTER");
-												break;
-											case "ha1secret":
-												bootbox.alert("Using this approach might not work with Asterisk because the generated HA1 secret could have the wrong realm");
 												break;
 											case "guest":
 												bootbox.alert("Using this approach you'll try to REGISTER as a guest, that is without providing any secret");
@@ -204,7 +201,7 @@ $(document).ready(function() {
 												  .removeClass("btn-success").addClass("btn-danger")
 												  .unbind('click').click(doHangup);
 										} else if(event === 'incomingcall') {
-											Janus.log("Incoming call from " + result["username"] + "!");
+											Janus.log("Incoming call from " + result["displayname"] + " (" + result["username"] + ")!");
 											var doAudio = true, doVideo = true;
 											var offerlessInvite = false;
 											if(jsep !== null && jsep !== undefined) {
@@ -230,9 +227,9 @@ $(document).ready(function() {
 											bootbox.hideAll();
 											var extra = "";
 											if(offerlessInvite)
-												extra = " (no SDP offer provided)"
+												extra = " (no SDP offer provided)";
 											incoming = bootbox.dialog({
-												message: "Incoming call from " + result["username"] + "!" + rtpType + extra,
+												message: "Incoming call from " + result["displayname"] + " (" + result["username"] + ")!" + rtpType + extra,
 												title: "Incoming call",
 												closeButton: false,
 												buttons: {
@@ -481,11 +478,8 @@ function registerUsername() {
 			"request" : "register",
 			"type" : "guest"
 		};
-		if(sipserver !== "") {
+		if(sipserver !== "")
 			register["proxy"] = sipserver;
-			// Uncomment this if you want to see an outbound proxy too
-			//~ register["outbound_proxy"] = "sip:outbound.example.com";
-		}
 		var username = $('#username').val();
 		if(!username === "" || username.indexOf("sip:") != 0 || username.indexOf("@") < 0) {
 			bootbox.alert("Please insert a valid SIP address (e.g., sip:goofy@example.com): this doesn't need to exist for guests, but is required");
@@ -549,7 +543,7 @@ function registerUsername() {
 		"request" : "register",
 		"username" : username
 	};
-	// By default, the SIP plugin tries to extract the username part from the SIP
+	// By default, the SIPre plugin tries to extract the username part from the SIP
 	// identity to register; if the username is different, you can provide it here
 	var authuser = $('#authuser').val();
 	if(authuser !== "") {
@@ -560,16 +554,10 @@ function registerUsername() {
 	if(displayname !== "") {
 		register.display_name = displayname;
 	}
-	if(selectedApproach === "secret") {
-		// Use the plain secret
-		register["secret"] = password;
-	} else if(selectedApproach === "ha1secret") {
-		var sip_user = username.substring(4, username.indexOf('@'));    /* skip sip: */
-		var sip_domain = username.substring(username.indexOf('@')+1);
-		register["ha1_secret"] = md5(sip_user+':'+sip_domain+':'+password);
-	}
+	// Use the plain secret
+	register["secret"] = password;
 	if(sipserver === "") {
-		bootbox.confirm("You didn't specify a SIP Registrar: this will cause the plugin to try and conduct a standard (<a href='https://tools.ietf.org/html/rfc3263' target='_blank'>RFC3263</a>) lookup. If this is not what you want or you don't know what this means, hit Cancel and provide a SIP Registrar instead'",
+		bootbox.confirm("You didn't specify a SIP Registrar to use: this will cause the plugin to try and conduct a standard (<a href='https://tools.ietf.org/html/rfc3263' target='_blank'>RFC3263</a>) lookup. If this is not what you want or you don't know what this means, hit Cancel and provide a SIP Registrar instead'",
 			function(result) {
 				if(result) {
 					sipcall.send({"message": register});
@@ -586,7 +574,7 @@ function registerUsername() {
 	} else {
 		register["proxy"] = sipserver;
 		// Uncomment this if you want to see an outbound proxy too
-		//~ register["outbound_proxy"] = "sip:outbound.example.com";
+		register["outbound_proxy"] = "sip:192.168.1.80:5080";
 		sipcall.send({"message": register});
 	}
 }
