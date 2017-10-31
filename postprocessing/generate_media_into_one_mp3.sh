@@ -97,12 +97,13 @@ for ((i=1; i<${index}; i++)) ; do
 	sp___amix="${sp___amix}[s${i}]"
 done
 sp___amix="${sp___amix}amix=inputs=${index}:duration=longest:dropout_transition=1"
-sp_output="videoroom-${videoroom}-${starttime}-audio-mix.mp3"
+sp_output="videoroom-${videoroom}-${starttime}-audio-org.mp3"
 sp_prefix="ffmpeg "
 spcommand="ffmpeg ${sp_inputs} ${sp_filter}${sp___amix} ${sp_output}"
 echo ${spcommand}
 ${spcommand}
-
+# qt 兼容
+lame ${sp_output} ${sp_output%-org.mp3}-mix.mp3
 
 
 
