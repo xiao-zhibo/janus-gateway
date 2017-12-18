@@ -233,12 +233,10 @@ AC_CHECK_LIB([protobuf-c],
                                   JANUS_MANUAL_LIBS+=" -lprotobuf-c"
                                   AM_CONDITIONAL([LIBPROTOBUF_C_DETECTED], true)
                                 ],
-                                [
-                                  AS_IF([test "x$enable_libsrtp2" = "xyes"],
-                                        [AC_MSG_ERROR([libsrtp2 headers not found. See README.md for installation instructions or use --disable-libsrtp-2 to try and autodetect libsrtp 1.5.x instead])])
-                                ])
+                                [AC_MSG_ERROR([protobuf-c headers not found. See README.md for installation instructions])]
+                                )
              ],
-             [AC_MSG_ERROR([libsrtp2 not found. See README.md for installation instructions or use --disable-libsrtp-2 to try and autodetect libsrtp 1.5.x instead])]
+             [AC_MSG_ERROR([protobuf-c not found. See README.md for installation instructions])]
              )
 
 AC_CHECK_LIB([crypto],
