@@ -660,7 +660,7 @@ static void janus_videoroom_rtp_forwarder_free_helper(gpointer data);
 static guint32 janus_videoroom_rtp_forwarder_add_helper(janus_videoroom_participant *p,
 	const gchar* host, int port, int pt, uint32_t ssrc, int substream, gboolean is_video, gboolean is_data);
 
-static void janus_videoroom_relay_participant_packet(janus_videoroom_participant *participant, janus_xiao_data_packet_header *header);
+static void janus_videoroom_relay_participant_packet(janus_videoroom_participant *participant, char *buf, janus_xiao_data_packet_header *header);
 
 typedef struct janus_videoroom_listener {
 	janus_videoroom_session *session;
@@ -2755,7 +2755,7 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 		guint64 room_id = json_integer_value(room);
 		json_t *json_content = json_object_get(root, "content");
 		char *content = g_strdup(json_string_value(json_content));
-		guint64 len = strlen(content)
+		guint64 len = strlen(content);
 
 		janus_mutex_lock(&rooms_mutex);
 		janus_videoroom *videoroom = g_hash_table_lookup(rooms, &room_id);
@@ -2779,11 +2779,18 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 		/* Relay to all participant */
 		janus_xiao_data_packet_header *header = g_malloc0(sizeof(janus_xiao_data_packet_header));
 		header->version = 1;
-		header->type = MESSAGE_TYPE_SYSTEM;
+		header->msg_type = MESSAGE_TYPE_SYSTEM;
 		header = len;
-		g_slist_foreach(videoroom->participants, janus_videoroom_relay_participant_packet, content, header);
-		g_free(header)
-		g_free(content)
+
+		GHashTableIter iter;
+		gpointer value;
+		g_hash_table_iter_init(&iter, videoroom->participants);
+		while (!videoroom->destroyed && g_hash_table_iter_next(&iter, NULL, &value)) {
+			janus_videoroom_participant *p = value;
+			janus_videoroom_relay_participant_packet(p, content, header);
+		}
+		g_free(header);
+		g_free(content);
 
 		janus_mutex_unlock(&videoroom->participants_mutex);
 		
@@ -2792,7 +2799,7 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 		json_object_set_new(response, "videoroom", json_string("success"));
 		/* Done */
 		goto plugin_response;
-	}else if(!strcasecmp(request_text, "join") || !strcasecmp(request_text, "joinandconfigure")
+	} else if(!strcasecmp(request_text, "join") || !strcasecmp(request_text, "joinandconfigure")
 			|| !strcasecmp(request_text, "configure") || !strcasecmp(request_text, "publish") || !strcasecmp(request_text, "unpublish")
 			|| !strcasecmp(request_text, "start") || !strcasecmp(request_text, "pause") || !strcasecmp(request_text, "switch") || !strcasecmp(request_text, "stop")
 			|| !strcasecmp(request_text, "add") || !strcasecmp(request_text, "remove") || !strcasecmp(request_text, "leave")) {
@@ -3257,8 +3264,8 @@ void janus_videoroom_incoming_data(janus_plugin_session *handle, char *buf, int 
 	g_free(participant->xiao_data_packet_buf);
 	participant->xiao_data_packet_buf = NULL;
 	participant->xiao_data_packet_received = 0;
-	g_free(participant->xiao_data_packet_header)
-	partucipant->xiao_data_packet_header = NULL;
+	g_free(participant->xiao_data_packet_header);
+	participant->xiao_data_packet_header = NULL;
 	janus_mutex_unlock(&participant->data_recv_mutex);
 }
 
@@ -5223,7 +5230,7 @@ static int janus_videoroom_wrap_datachannel_data_packet(janus_videoroom_particip
 		participant->xiao_data_packet_received = total_size;
 	}
 	if (participant->xiao_data_packet_header == NULL) {
-		participant->xiao_data_packet_header = g_malloc0(sizeof(janus_xiao_data_packet_header))
+		participant->xiao_data_packet_header = g_malloc0(sizeof(janus_xiao_data_packet_header));
 	}
 	participant->xiao_data_packet_header->msg_type = msg_type;
 	participant->xiao_data_packet_header->version = version;
@@ -5243,6 +5250,7 @@ static void janus_videoroom_relay_participant_packet(janus_videoroom_participant
 	if(!session->started) {
 		return;
 	}
+	guint64 len = header->total_size;
 	if(gateway != NULL && buf != NULL && len > 0) {
 		janus_mutex_lock(&participant->data_send_mutex);
 		JANUS_LOG(LOG_VERB, "Forwarding DataChannel message (%d bytes) to viewer.\n", len);
