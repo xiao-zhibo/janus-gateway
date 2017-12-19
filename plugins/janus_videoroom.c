@@ -289,6 +289,11 @@ static struct janus_json_parameter kick_parameters[] = {
 	{"secret", JSON_STRING, 0},
 	{"id", JSON_INTEGER, JANUS_JSON_PARAM_REQUIRED | JANUS_JSON_PARAM_POSITIVE}
 };
+static struct janus_json_parameter message_parameters[] = {
+	{"room", JSON_INTEGER, JANUS_JSON_PARAM_REQUIRED | JANUS_JSON_PARAM_POSITIVE},
+	{"secret", JSON_STRING, 0},
+	{"content", JSON_STRING, 0}
+};
 static struct janus_json_parameter join_parameters[] = {
 	{"room", JSON_INTEGER, JANUS_JSON_PARAM_REQUIRED | JANUS_JSON_PARAM_POSITIVE},
 	{"ptype", JSON_STRING, JANUS_JSON_PARAM_REQUIRED},
@@ -2745,7 +2750,7 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 	} else if(!strcasecmp(request_text, "message")) {
 		/* publish a message to an existing videoroom */
 		JANUS_LOG(LOG_VERB, "Attempt to publish a message to an existing videoroom\n");
-		JANUS_VALIDATE_JSON_OBJECT(root, edit_parameters,
+		JANUS_VALIDATE_JSON_OBJECT(root, message_parameters,
 			error_code, error_cause, TRUE,
 			JANUS_VIDEOROOM_ERROR_MISSING_ELEMENT, JANUS_VIDEOROOM_ERROR_INVALID_ELEMENT);
 		if(error_code != 0)
@@ -2756,6 +2761,7 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 		json_t *json_content = json_object_get(root, "content");
 		char *content = g_strdup(json_string_value(json_content));
 		guint64 len = strlen(content);
+		JANUS_LOG(LOG_INFO, "room: (%"SCNu64")    content: %s\n", room_id, content);
 
 		janus_mutex_lock(&rooms_mutex);
 		janus_videoroom *videoroom = g_hash_table_lookup(rooms, &room_id);
@@ -2780,7 +2786,7 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 		janus_xiao_data_packet_header *header = g_malloc0(sizeof(janus_xiao_data_packet_header));
 		header->version = 1;
 		header->msg_type = MESSAGE_TYPE_SYSTEM;
-		header = len;
+		header->total_size = len;
 
 		GHashTableIter iter;
 		gpointer value;
