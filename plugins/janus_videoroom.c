@@ -5186,14 +5186,14 @@ static int janus_videoroom_wrap_datachannel_data_packet(janus_videoroom_particip
 	guint64 pkg_offset = 2;
 
 	guint64 total_size    = 0;
-	memcpy((void*)&total_size, (const void*)(buf+sizeof(version)), sizeof(total_size));
+	memcpy((void*)&total_size, (const void*)(buf + pkg_offset), sizeof(total_size));
 	pkg_offset += sizeof(total_size);
 
 	unsigned char chunked = (unsigned char)buf[pkg_offset];//是否结束, 2+8
 	pkg_offset += sizeof(chunked);
 
 	guint32 pkt_index     = 0;
-	memcpy((void*)&pkt_index,  (const void*)(buf+pkg_offset), sizeof(pkt_index));
+	memcpy((void*)&pkt_index,  (const void*)(buf + pkg_offset), sizeof(pkt_index));
 	pkg_offset += sizeof(pkt_index);
 	//JANUS_LOG(LOG_WARN, "version:%d, total_size:%zu, chunked:%d, pkt_index:%d\n", version, total_size, chunked, pkt_index);
 	if (chunked > 1) {
