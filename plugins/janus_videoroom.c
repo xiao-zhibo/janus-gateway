@@ -5183,11 +5183,18 @@ static void janus_videoroom_participant_free(janus_videoroom_participant *p) {
 static int janus_videoroom_wrap_datachannel_data_packet(janus_videoroom_participant *participant, char *buf, int len) {
 	unsigned char version = (unsigned char)buf[0];
 	unsigned char msg_type = (unsigned char)buf[1];
+	guint64 pkg_offset = 2;
+
 	guint64 total_size    = 0;
-	unsigned char chunked = (unsigned char)buf[sizeof(version)+sizeof(total_size)];//是否结束, 1+8
-	guint32 pkt_index     = 0;
 	memcpy((void*)&total_size, (const void*)(buf+sizeof(version)), sizeof(total_size));
-	memcpy((void*)&pkt_index,  (const void*)(buf+sizeof(version)+sizeof(total_size)+sizeof(chunked)), sizeof(pkt_index));
+	pkg_offset += sizeof(total_size);
+
+	unsigned char chunked = (unsigned char)buf[pkg_offset];//是否结束, 2+8
+	pkg_offset += sizeof(chunked);
+
+	guint32 pkt_index     = 0;
+	memcpy((void*)&pkt_index,  (const void*)(buf+pkg_offset), sizeof(pkt_index));
+	pkg_offset += sizeof(pkt_index);
 	//JANUS_LOG(LOG_WARN, "version:%d, total_size:%zu, chunked:%d, pkt_index:%d\n", version, total_size, chunked, pkt_index);
 	if (chunked > 1) {
 		JANUS_LOG(LOG_WARN, "Unknown whiteboard packets\n");
@@ -5207,7 +5214,7 @@ static int janus_videoroom_wrap_datachannel_data_packet(janus_videoroom_particip
 		// 获取并复制内容到缓冲区上
 		guint64 real_data_size = len - JAVUS_VIDEOROOM_DATA_PKT_HEADER_LEN;
 		void *data_offset = participant->xiao_data_packet_buf + participant->xiao_data_packet_received;
-		memcpy(data_offset, (const void*)(buf+JAVUS_VIDEOROOM_DATA_PKT_HEADER_LEN), real_data_size);
+		memcpy(data_offset, (const void*)(buf + pkg_offset), real_data_size);
 		participant->xiao_data_packet_received += real_data_size;
 		if (participant->xiao_data_packet_received < total_size) {
 			return 0;// 没接收完， 等待继续接收
@@ -5226,7 +5233,7 @@ static int janus_videoroom_wrap_datachannel_data_packet(janus_videoroom_particip
 			return -1;
 		}
 
-		memcpy(participant->xiao_data_packet_buf, (const void*)(buf+JAVUS_VIDEOROOM_DATA_PKT_HEADER_LEN), total_size);
+		memcpy(participant->xiao_data_packet_buf, (const void*)(buf + pkg_offset), total_size);
 		participant->xiao_data_packet_received = total_size;
 	}
 	if (participant->xiao_data_packet_header == NULL) {
