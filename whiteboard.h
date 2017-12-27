@@ -21,13 +21,24 @@ typedef enum
 
 typedef enum {
 	KLPackageType_DrawCommand = 0,
-    KLPackageType_SwitchScene,
+    KLPackageType_SwitchScenePage,
     KLPackageType_CleanDraw,
+    KLPackageType_ScenePageData,
+    KLPackageType_KeyFrame,
+    KLPackageType_AddScene,
     KLPackageType_SceneData,
-    KLPackageType_KeyFrame
 } KLDataPackageType;
 
 #define MAX_PACKET_CAPACITY 100000
+
+typedef strcut janus_scene {
+	char *source_url;
+	int page_num;
+	/*! 坐标存scene, 指针指向相应的keyframe。用于快速定位筛选出符合的场景数据给回前端 */
+	Pb__KeyFrame **page_keyframes;
+	Pb__Package **scene_packages;
+	int scene_package_num;
+} janus_scene;
 
 /*! \brief Structure that represents a whiteboard */
 typedef struct janus_whiteboard {
@@ -43,9 +54,11 @@ typedef struct janus_whiteboard {
 	FILE *file;
 	
 	int scene;
-	Pb__Package **scene_packages;
-	int scene_package_num;
-	/*! 坐标存scene, 指针指向相应的keyframe。用于快速定位筛选出符合的场景数据给回前端 */
+	janus_scene **scenes;
+	int scene_num;
+	// Pb__Package **scene_packages;
+	// int scene_package_num;
+	//! 坐标存scene, 指针指向相应的keyframe。用于快速定位筛选出符合的场景数据给回前端 
 	Pb__KeyFrame **scene_keyframes;
 	int scene_keyframe_maxnum;
 

@@ -382,13 +382,13 @@ void janus_whiteboard_add_pkt_to_packages_l(Pb__Package** packages, size_t* pack
 		janus_whiteboard_remove_packets_l(packages, 0, *packages_len);
 		packages[0] = dst_pkg;
 		*packages_len = 1;
-	} else if (dst_pkg->type == KLPackageType_SwitchScene) {
+	} else if (dst_pkg->type == KLPackageType_SwitchScenePage) {
 		// 只需要存一个占位
 		if (*packages_len == 0) {
 			packages[*packages_len] = dst_pkg;
 			(*packages_len) ++;
 		}
-	} else if (dst_pkg->type != KLPackageType_SceneData) {
+	} else if (dst_pkg->type != KLPackageType_ScenePageData) {
 		// FIXME:Rison 有新的指令过来需要考虑这里. 过滤掉特殊指令
 		packages[*packages_len] = dst_pkg;
 		(*packages_len) ++;
@@ -566,7 +566,12 @@ janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboa
 	}
 	package->timestamp = janus_whiteboard_get_current_time_l() - whiteboard->start_timestamp;
 
-	if (package->type == KLPackageType_SwitchScene) {
+	if (package->type == KLPackageType_AddScene) {
+		
+	} else if (package->type == KLPackageType_SceneData) {
+
+	}
+	if (package->type == KLPackageType_SwitchScenePage) {
 	// 切换白板场景
 		if (package->scene == whiteboard->scene) {
 			JANUS_LOG(LOG_WARN, "Get a request to switch scene, but currenttly the whiteboard is on the target %d scene\n", package->scene);
@@ -589,7 +594,7 @@ janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboa
 			whiteboard->scene_package_num = 0;
 			JANUS_LOG(LOG_INFO, "Get a clear screen command, clear local cache data now\n");
 		}
-	} else if (package->type == KLPackageType_SceneData) {
+	} else if (package->type == KLPackageType_ScenePageData) {
 	// 请求指定场景的白板数据
 		if ( package->scene == whiteboard->scene || package->scene == -1 ) {
 			// 当前场景
@@ -610,12 +615,11 @@ janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboa
 		return result;
 	}
 
-	//if (package->type != KLPackageType_SceneData)// 此处无需考虑非scene data的情况，因为这种情况已在前面处理并返回
-
+	//if (package->type != KLPackageType_ScenePageData)// 此处无需考虑非scene data的情况，因为这种情况已在前面处理并返回
 	if (package->type == KLPackageType_KeyFrame || package->type == KLPackageType_CleanDraw) {
 	    // 额外处理关键帧
 		janus_whiteboard_on_receive_keyframe_l(whiteboard, package);
-	} else if (package->type == KLPackageType_SwitchScene) {
+	} else if (package->type == KLPackageType_SwitchScenePage) {
 		// 切换到新页面或者新场景的数据为0也可以认为是关键帧
 		if (whiteboard->scene_package_num == 0) {
 			janus_whiteboard_on_receive_keyframe_l(whiteboard, package);
@@ -645,7 +649,7 @@ janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboa
 		JANUS_LOG(LOG_ERR, "Error happens when saving scene data packet to basefile: %s\n", whiteboard->filename);
 	}
 	
-	// 保存数据到当前场景（内存），以便快速处理KLPackageType_SceneData指令
+	// 保存数据到当前场景（内存），以便快速处理KLPackageType_ScenePageData指令
 	if (package->scene == whiteboard->scene) {
 		janus_whiteboard_add_pkt_to_packages_l(whiteboard->scene_packages, &(whiteboard->scene_package_num), package);
 	} else {
