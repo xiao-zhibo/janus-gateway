@@ -31,13 +31,13 @@ typedef enum {
 
 #define MAX_PACKET_CAPACITY 100000
 
-typedef strcut janus_scene {
+typedef struct janus_scene {
 	char *source_url;
 	int page_num;
-	/*! 坐标存scene, 指针指向相应的keyframe。用于快速定位筛选出符合的场景数据给回前端 */
+
+	/*! 坐标存page, 指针指向相应的keyframe。用于快速定位筛选出符合的场景数据给回前端 */
 	Pb__KeyFrame **page_keyframes;
-	Pb__Package **scene_packages;
-	int scene_package_num;
+	int page_keyframe_maxnum;
 } janus_scene;
 
 /*! \brief Structure that represents a whiteboard */
@@ -48,19 +48,25 @@ typedef struct janus_whiteboard {
 	char *filename;
 	/*! \brief whiteboard header file */
 	FILE *header_file;
-	/*! \brief whiteboard scitch scene index */
+	/*! \brief whiteboard scene data */
 	FILE *scene_file;
+	/*! \brief whiteboard scitch page index */
+	FILE *page_file;
 	/*! \brief whiteboard data file */
 	FILE *file;
 	
-	int scene;
 	janus_scene **scenes;
 	int scene_num;
 	// Pb__Package **scene_packages;
 	// int scene_package_num;
 	//! 坐标存scene, 指针指向相应的keyframe。用于快速定位筛选出符合的场景数据给回前端 
-	Pb__KeyFrame **scene_keyframes;
-	int scene_keyframe_maxnum;
+	// Pb__KeyFrame **scene_keyframes;
+	// int scene_keyframe_maxnum;
+	int scene;
+	int page;
+
+	Pb__Package **scene_page_packages;
+	int scene_page_package_num;
 
 	int64_t start_timestamp;
 	

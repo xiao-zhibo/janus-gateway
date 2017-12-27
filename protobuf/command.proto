@@ -27,6 +27,7 @@ message Scene {
     int32 type = 1;
     string resource = 2;
     int32 pagecount = 3;
+    int32 index = 4;
 }
 
 message Package {
@@ -36,7 +37,7 @@ message Package {
     int32 page = 4;
     repeated Command cmd = 5;
     repeated Line lines = 6;
-    repeated Scene scenes = 7;
+    Scene newScene = 7;
 }
 
 message KeyFrame {

@@ -142,6 +142,51 @@ void   pb__line__free_unpacked
   assert(message->base.descriptor == &pb__line__descriptor);
   protobuf_c_message_free_unpacked ((ProtobufCMessage*)message, allocator);
 }
+void   pb__scene__init
+                     (Pb__Scene         *message)
+{
+  static const Pb__Scene init_value = PB__SCENE__INIT;
+  *message = init_value;
+}
+size_t pb__scene__get_packed_size
+                     (const Pb__Scene *message)
+{
+  assert(message->base.descriptor == &pb__scene__descriptor);
+  return protobuf_c_message_get_packed_size ((const ProtobufCMessage*)(message));
+}
+size_t pb__scene__pack
+                     (const Pb__Scene *message,
+                      uint8_t       *out)
+{
+  assert(message->base.descriptor == &pb__scene__descriptor);
+  return protobuf_c_message_pack ((const ProtobufCMessage*)message, out);
+}
+size_t pb__scene__pack_to_buffer
+                     (const Pb__Scene *message,
+                      ProtobufCBuffer *buffer)
+{
+  assert(message->base.descriptor == &pb__scene__descriptor);
+  return protobuf_c_message_pack_to_buffer ((const ProtobufCMessage*)message, buffer);
+}
+Pb__Scene *
+       pb__scene__unpack
+                     (ProtobufCAllocator  *allocator,
+                      size_t               len,
+                      const uint8_t       *data)
+{
+  return (Pb__Scene *)
+     protobuf_c_message_unpack (&pb__scene__descriptor,
+                                allocator, len, data);
+}
+void   pb__scene__free_unpacked
+                     (Pb__Scene *message,
+                      ProtobufCAllocator *allocator)
+{
+  if(!message)
+    return;
+  assert(message->base.descriptor == &pb__scene__descriptor);
+  protobuf_c_message_free_unpacked ((ProtobufCMessage*)message, allocator);
+}
 void   pb__package__init
                      (Pb__Package         *message)
 {
@@ -232,49 +277,49 @@ void   pb__key_frame__free_unpacked
   assert(message->base.descriptor == &pb__key_frame__descriptor);
   protobuf_c_message_free_unpacked ((ProtobufCMessage*)message, allocator);
 }
-void   pb__scene_index__init
-                     (Pb__SceneIndex         *message)
+void   pb__page_index__init
+                     (Pb__PageIndex         *message)
 {
-  static const Pb__SceneIndex init_value = PB__SCENE_INDEX__INIT;
+  static const Pb__PageIndex init_value = PB__PAGE_INDEX__INIT;
   *message = init_value;
 }
-size_t pb__scene_index__get_packed_size
-                     (const Pb__SceneIndex *message)
+size_t pb__page_index__get_packed_size
+                     (const Pb__PageIndex *message)
 {
-  assert(message->base.descriptor == &pb__scene_index__descriptor);
+  assert(message->base.descriptor == &pb__page_index__descriptor);
   return protobuf_c_message_get_packed_size ((const ProtobufCMessage*)(message));
 }
-size_t pb__scene_index__pack
-                     (const Pb__SceneIndex *message,
+size_t pb__page_index__pack
+                     (const Pb__PageIndex *message,
                       uint8_t       *out)
 {
-  assert(message->base.descriptor == &pb__scene_index__descriptor);
+  assert(message->base.descriptor == &pb__page_index__descriptor);
   return protobuf_c_message_pack ((const ProtobufCMessage*)message, out);
 }
-size_t pb__scene_index__pack_to_buffer
-                     (const Pb__SceneIndex *message,
+size_t pb__page_index__pack_to_buffer
+                     (const Pb__PageIndex *message,
                       ProtobufCBuffer *buffer)
 {
-  assert(message->base.descriptor == &pb__scene_index__descriptor);
+  assert(message->base.descriptor == &pb__page_index__descriptor);
   return protobuf_c_message_pack_to_buffer ((const ProtobufCMessage*)message, buffer);
 }
-Pb__SceneIndex *
-       pb__scene_index__unpack
+Pb__PageIndex *
+       pb__page_index__unpack
                      (ProtobufCAllocator  *allocator,
                       size_t               len,
                       const uint8_t       *data)
 {
-  return (Pb__SceneIndex *)
-     protobuf_c_message_unpack (&pb__scene_index__descriptor,
+  return (Pb__PageIndex *)
+     protobuf_c_message_unpack (&pb__page_index__descriptor,
                                 allocator, len, data);
 }
-void   pb__scene_index__free_unpacked
-                     (Pb__SceneIndex *message,
+void   pb__page_index__free_unpacked
+                     (Pb__PageIndex *message,
                       ProtobufCAllocator *allocator)
 {
   if(!message)
     return;
-  assert(message->base.descriptor == &pb__scene_index__descriptor);
+  assert(message->base.descriptor == &pb__page_index__descriptor);
   protobuf_c_message_free_unpacked ((ProtobufCMessage*)message, allocator);
 }
 void   pb__header__init
@@ -566,7 +611,84 @@ const ProtobufCMessageDescriptor pb__line__descriptor =
   (ProtobufCMessageInit) pb__line__init,
   NULL,NULL,NULL    /* reserved[123] */
 };
-static const ProtobufCFieldDescriptor pb__package__field_descriptors[5] =
+static const ProtobufCFieldDescriptor pb__scene__field_descriptors[4] =
+{
+  {
+    "type",
+    1,
+    PROTOBUF_C_LABEL_NONE,
+    PROTOBUF_C_TYPE_INT32,
+    0,   /* quantifier_offset */
+    offsetof(Pb__Scene, type),
+    NULL,
+    NULL,
+    0,             /* flags */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
+  {
+    "resource",
+    2,
+    PROTOBUF_C_LABEL_NONE,
+    PROTOBUF_C_TYPE_STRING,
+    0,   /* quantifier_offset */
+    offsetof(Pb__Scene, resource),
+    NULL,
+    &protobuf_c_empty_string,
+    0,             /* flags */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
+  {
+    "pagecount",
+    3,
+    PROTOBUF_C_LABEL_NONE,
+    PROTOBUF_C_TYPE_INT32,
+    0,   /* quantifier_offset */
+    offsetof(Pb__Scene, pagecount),
+    NULL,
+    NULL,
+    0,             /* flags */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
+  {
+    "index",
+    4,
+    PROTOBUF_C_LABEL_NONE,
+    PROTOBUF_C_TYPE_INT32,
+    0,   /* quantifier_offset */
+    offsetof(Pb__Scene, index),
+    NULL,
+    NULL,
+    0,             /* flags */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
+};
+static const unsigned pb__scene__field_indices_by_name[] = {
+  3,   /* field[3] = index */
+  2,   /* field[2] = pagecount */
+  1,   /* field[1] = resource */
+  0,   /* field[0] = type */
+};
+static const ProtobufCIntRange pb__scene__number_ranges[1 + 1] =
+{
+  { 1, 0 },
+  { 0, 4 }
+};
+const ProtobufCMessageDescriptor pb__scene__descriptor =
+{
+  PROTOBUF_C__MESSAGE_DESCRIPTOR_MAGIC,
+  "pb.Scene",
+  "Scene",
+  "Pb__Scene",
+  "pb",
+  sizeof(Pb__Scene),
+  4,
+  pb__scene__field_descriptors,
+  pb__scene__field_indices_by_name,
+  1,  pb__scene__number_ranges,
+  (ProtobufCMessageInit) pb__scene__init,
+  NULL,NULL,NULL    /* reserved[123] */
+};
+static const ProtobufCFieldDescriptor pb__package__field_descriptors[7] =
 {
   {
     "type",
@@ -605,8 +727,20 @@ static const ProtobufCFieldDescriptor pb__package__field_descriptors[5] =
     0,NULL,NULL    /* reserved1,reserved2, etc */
   },
   {
-    "cmd",
+    "page",
     4,
+    PROTOBUF_C_LABEL_NONE,
+    PROTOBUF_C_TYPE_INT32,
+    0,   /* quantifier_offset */
+    offsetof(Pb__Package, page),
+    NULL,
+    NULL,
+    0,             /* flags */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
+  {
+    "cmd",
+    5,
     PROTOBUF_C_LABEL_REPEATED,
     PROTOBUF_C_TYPE_MESSAGE,
     offsetof(Pb__Package, n_cmd),
@@ -618,7 +752,7 @@ static const ProtobufCFieldDescriptor pb__package__field_descriptors[5] =
   },
   {
     "lines",
-    5,
+    6,
     PROTOBUF_C_LABEL_REPEATED,
     PROTOBUF_C_TYPE_MESSAGE,
     offsetof(Pb__Package, n_lines),
@@ -628,10 +762,24 @@ static const ProtobufCFieldDescriptor pb__package__field_descriptors[5] =
     0,             /* flags */
     0,NULL,NULL    /* reserved1,reserved2, etc */
   },
+  {
+    "newScene",
+    7,
+    PROTOBUF_C_LABEL_NONE,
+    PROTOBUF_C_TYPE_MESSAGE,
+    0,   /* quantifier_offset */
+    offsetof(Pb__Package, newscene),
+    &pb__scene__descriptor,
+    NULL,
+    0,             /* flags */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
 };
 static const unsigned pb__package__field_indices_by_name[] = {
-  3,   /* field[3] = cmd */
-  4,   /* field[4] = lines */
+  4,   /* field[4] = cmd */
+  5,   /* field[5] = lines */
+  6,   /* field[6] = newScene */
+  3,   /* field[3] = page */
   2,   /* field[2] = scene */
   1,   /* field[1] = timestamp */
   0,   /* field[0] = type */
@@ -639,7 +787,7 @@ static const unsigned pb__package__field_indices_by_name[] = {
 static const ProtobufCIntRange pb__package__number_ranges[1 + 1] =
 {
   { 1, 0 },
-  { 0, 5 }
+  { 0, 7 }
 };
 const ProtobufCMessageDescriptor pb__package__descriptor =
 {
@@ -649,14 +797,14 @@ const ProtobufCMessageDescriptor pb__package__descriptor =
   "Pb__Package",
   "pb",
   sizeof(Pb__Package),
-  5,
+  7,
   pb__package__field_descriptors,
   pb__package__field_indices_by_name,
   1,  pb__package__number_ranges,
   (ProtobufCMessageInit) pb__package__init,
   NULL,NULL,NULL    /* reserved[123] */
 };
-static const ProtobufCFieldDescriptor pb__key_frame__field_descriptors[3] =
+static const ProtobufCFieldDescriptor pb__key_frame__field_descriptors[4] =
 {
   {
     "offset",
@@ -683,8 +831,20 @@ static const ProtobufCFieldDescriptor pb__key_frame__field_descriptors[3] =
     0,NULL,NULL    /* reserved1,reserved2, etc */
   },
   {
-    "timestamp",
+    "page",
     3,
+    PROTOBUF_C_LABEL_NONE,
+    PROTOBUF_C_TYPE_INT32,
+    0,   /* quantifier_offset */
+    offsetof(Pb__KeyFrame, page),
+    NULL,
+    NULL,
+    0,             /* flags */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
+  {
+    "timestamp",
+    4,
     PROTOBUF_C_LABEL_NONE,
     PROTOBUF_C_TYPE_INT64,
     0,   /* quantifier_offset */
@@ -697,13 +857,14 @@ static const ProtobufCFieldDescriptor pb__key_frame__field_descriptors[3] =
 };
 static const unsigned pb__key_frame__field_indices_by_name[] = {
   0,   /* field[0] = offset */
+  2,   /* field[2] = page */
   1,   /* field[1] = scene */
-  2,   /* field[2] = timestamp */
+  3,   /* field[3] = timestamp */
 };
 static const ProtobufCIntRange pb__key_frame__number_ranges[1 + 1] =
 {
   { 1, 0 },
-  { 0, 3 }
+  { 0, 4 }
 };
 const ProtobufCMessageDescriptor pb__key_frame__descriptor =
 {
@@ -713,14 +874,14 @@ const ProtobufCMessageDescriptor pb__key_frame__descriptor =
   "Pb__KeyFrame",
   "pb",
   sizeof(Pb__KeyFrame),
-  3,
+  4,
   pb__key_frame__field_descriptors,
   pb__key_frame__field_indices_by_name,
   1,  pb__key_frame__number_ranges,
   (ProtobufCMessageInit) pb__key_frame__init,
   NULL,NULL,NULL    /* reserved[123] */
 };
-static const ProtobufCFieldDescriptor pb__scene_index__field_descriptors[2] =
+static const ProtobufCFieldDescriptor pb__page_index__field_descriptors[3] =
 {
   {
     "scene",
@@ -728,7 +889,19 @@ static const ProtobufCFieldDescriptor pb__scene_index__field_descriptors[2] =
     PROTOBUF_C_LABEL_NONE,
     PROTOBUF_C_TYPE_INT32,
     0,   /* quantifier_offset */
-    offsetof(Pb__SceneIndex, scene),
+    offsetof(Pb__PageIndex, scene),
+    NULL,
+    NULL,
+    0,             /* flags */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
+  {
+    "page",
+    2,
+    PROTOBUF_C_LABEL_NONE,
+    PROTOBUF_C_TYPE_INT32,
+    0,   /* quantifier_offset */
+    offsetof(Pb__PageIndex, page),
     NULL,
     NULL,
     0,             /* flags */
@@ -736,42 +909,43 @@ static const ProtobufCFieldDescriptor pb__scene_index__field_descriptors[2] =
   },
   {
     "timestamp",
-    2,
+    3,
     PROTOBUF_C_LABEL_NONE,
     PROTOBUF_C_TYPE_INT32,
     0,   /* quantifier_offset */
-    offsetof(Pb__SceneIndex, timestamp),
+    offsetof(Pb__PageIndex, timestamp),
     NULL,
     NULL,
     0,             /* flags */
     0,NULL,NULL    /* reserved1,reserved2, etc */
   },
 };
-static const unsigned pb__scene_index__field_indices_by_name[] = {
+static const unsigned pb__page_index__field_indices_by_name[] = {
+  1,   /* field[1] = page */
   0,   /* field[0] = scene */
-  1,   /* field[1] = timestamp */
+  2,   /* field[2] = timestamp */
 };
-static const ProtobufCIntRange pb__scene_index__number_ranges[1 + 1] =
+static const ProtobufCIntRange pb__page_index__number_ranges[1 + 1] =
 {
   { 1, 0 },
-  { 0, 2 }
+  { 0, 3 }
 };
-const ProtobufCMessageDescriptor pb__scene_index__descriptor =
+const ProtobufCMessageDescriptor pb__page_index__descriptor =
 {
   PROTOBUF_C__MESSAGE_DESCRIPTOR_MAGIC,
-  "pb.SceneIndex",
-  "SceneIndex",
-  "Pb__SceneIndex",
+  "pb.PageIndex",
+  "PageIndex",
+  "Pb__PageIndex",
   "pb",
-  sizeof(Pb__SceneIndex),
-  2,
-  pb__scene_index__field_descriptors,
-  pb__scene_index__field_indices_by_name,
-  1,  pb__scene_index__number_ranges,
-  (ProtobufCMessageInit) pb__scene_index__init,
+  sizeof(Pb__PageIndex),
+  3,
+  pb__page_index__field_descriptors,
+  pb__page_index__field_indices_by_name,
+  1,  pb__page_index__number_ranges,
+  (ProtobufCMessageInit) pb__page_index__init,
   NULL,NULL,NULL    /* reserved[123] */
 };
-static const ProtobufCFieldDescriptor pb__header__field_descriptors[4] =
+static const ProtobufCFieldDescriptor pb__header__field_descriptors[5] =
 {
   {
     "version",
@@ -810,13 +984,25 @@ static const ProtobufCFieldDescriptor pb__header__field_descriptors[4] =
     0,NULL,NULL    /* reserved1,reserved2, etc */
   },
   {
-    "sceneindexs",
+    "pageindexs",
     4,
     PROTOBUF_C_LABEL_REPEATED,
     PROTOBUF_C_TYPE_MESSAGE,
-    offsetof(Pb__Header, n_sceneindexs),
-    offsetof(Pb__Header, sceneindexs),
-    &pb__scene_index__descriptor,
+    offsetof(Pb__Header, n_pageindexs),
+    offsetof(Pb__Header, pageindexs),
+    &pb__page_index__descriptor,
+    NULL,
+    0,             /* flags */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
+  {
+    "scenes",
+    5,
+    PROTOBUF_C_LABEL_REPEATED,
+    PROTOBUF_C_TYPE_MESSAGE,
+    offsetof(Pb__Header, n_scenes),
+    offsetof(Pb__Header, scenes),
+    &pb__scene__descriptor,
     NULL,
     0,             /* flags */
     0,NULL,NULL    /* reserved1,reserved2, etc */
@@ -825,13 +1011,14 @@ static const ProtobufCFieldDescriptor pb__header__field_descriptors[4] =
 static const unsigned pb__header__field_indices_by_name[] = {
   1,   /* field[1] = duration */
   2,   /* field[2] = keyframes */
-  3,   /* field[3] = sceneindexs */
+  3,   /* field[3] = pageindexs */
+  4,   /* field[4] = scenes */
   0,   /* field[0] = version */
 };
 static const ProtobufCIntRange pb__header__number_ranges[1 + 1] =
 {
   { 1, 0 },
-  { 0, 4 }
+  { 0, 5 }
 };
 const ProtobufCMessageDescriptor pb__header__descriptor =
 {
@@ -841,7 +1028,7 @@ const ProtobufCMessageDescriptor pb__header__descriptor =
   "Pb__Header",
   "pb",
   sizeof(Pb__Header),
-  4,
+  5,
   pb__header__field_descriptors,
   pb__header__field_indices_by_name,
   1,  pb__header__number_ranges,
