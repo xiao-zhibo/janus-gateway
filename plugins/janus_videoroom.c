@@ -3227,6 +3227,16 @@ void janus_videoroom_incoming_data(janus_plugin_session *handle, char *buf, int 
 		
 		/* ret 大于0时表示发起者发出了指令，将有数据需要返回. */
 		if (wret.ret > 0) {
+			if (wret.package_type == KLPackageType_AddScene) {
+				/* Relay to all listeners */
+				janus_videoroom_data_packet packet;
+				packet.data = wret.command_buf;
+				packet.length = wret.command_len;
+				janus_mutex_lock_nodebug(&participant->listeners_mutex);
+				g_slist_foreach(participant->listeners, janus_videoroom_relay_data_packet, &packet);
+				janus_mutex_unlock_nodebug(&participant->listeners_mutex);
+			}
+			
 			/* 返回关键帧 */
 			janus_xiao_data_packet_header header;
 			header.version = JANUS_DATA_PKT_VERSION;

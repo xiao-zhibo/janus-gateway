@@ -38,6 +38,7 @@ message Package {
     repeated Command cmd = 5;
     repeated Line lines = 6;
     Scene newScene = 7;
+    repeated Scene scenes = 8;
 }
 
 message KeyFrame {

@@ -688,7 +688,7 @@ const ProtobufCMessageDescriptor pb__scene__descriptor =
   (ProtobufCMessageInit) pb__scene__init,
   NULL,NULL,NULL    /* reserved[123] */
 };
-static const ProtobufCFieldDescriptor pb__package__field_descriptors[7] =
+static const ProtobufCFieldDescriptor pb__package__field_descriptors[8] =
 {
   {
     "type",
@@ -774,6 +774,18 @@ static const ProtobufCFieldDescriptor pb__package__field_descriptors[7] =
     0,             /* flags */
     0,NULL,NULL    /* reserved1,reserved2, etc */
   },
+  {
+    "scenes",
+    8,
+    PROTOBUF_C_LABEL_REPEATED,
+    PROTOBUF_C_TYPE_MESSAGE,
+    offsetof(Pb__Package, n_scenes),
+    offsetof(Pb__Package, scenes),
+    &pb__scene__descriptor,
+    NULL,
+    0,             /* flags */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
 };
 static const unsigned pb__package__field_indices_by_name[] = {
   4,   /* field[4] = cmd */
@@ -781,13 +793,14 @@ static const unsigned pb__package__field_indices_by_name[] = {
   6,   /* field[6] = newScene */
   3,   /* field[3] = page */
   2,   /* field[2] = scene */
+  7,   /* field[7] = scenes */
   1,   /* field[1] = timestamp */
   0,   /* field[0] = type */
 };
 static const ProtobufCIntRange pb__package__number_ranges[1 + 1] =
 {
   { 1, 0 },
-  { 0, 7 }
+  { 0, 8 }
 };
 const ProtobufCMessageDescriptor pb__package__descriptor =
 {
@@ -797,7 +810,7 @@ const ProtobufCMessageDescriptor pb__package__descriptor =
   "Pb__Package",
   "pb",
   sizeof(Pb__Package),
-  7,
+  8,
   pb__package__field_descriptors,
   pb__package__field_indices_by_name,
   1,  pb__package__number_ranges,

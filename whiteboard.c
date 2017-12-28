@@ -646,6 +646,7 @@ janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboa
 		.keyframe_buf = NULL,
 		.command_len  = 0,
 		.command_buf  = NULL,
+		.package_type = KLPackageType_None,
 	};
 
 	if(!whiteboard) {
@@ -673,10 +674,24 @@ janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboa
 	package->timestamp = janus_whiteboard_get_current_time_l() - whiteboard->start_timestamp;
 
 	if (package->type == KLPackageType_AddScene) {
+		// add whiteboard scene
 		result.ret = janus_whiteboard_add_scenes(whiteboard, package->newscene);
+		result.command_len = pb__package__get_packed_size(package);
+		result.command_buf = g_malloc0(result.command_len);
+		pb__package__pack(package, result.command_buf);
+		result.package_type = KLPackageType_AddScene;
+		return result;
 	} else if (package->type == KLPackageType_SceneData) {
+		// get whiteboard scene data
 		Pb__Scene **scenes = g_malloc0(sizeof(Pb__Scene*) * whiteboard->scene_num);
 		result.ret = janus_whiteboard_scenes_data(whiteboard, scenes);
+		package->n_scenes = result.ret;
+		package->scenes = scenes;
+		result.command_len = pb__package__get_packed_size(package);
+		result.command_buf = g_malloc0(result.command_len);
+		pb__package__pack(package, result.command_buf);
+		result.package_type = KLPackageType_SceneData;
+		return result;
 	}
 	if (package->type == KLPackageType_SwitchScenePage) {
 	// 切换白板场景

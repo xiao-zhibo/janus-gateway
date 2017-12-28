@@ -96,10 +96,12 @@ struct  _Pb__Package
   size_t n_lines;
   Pb__Line **lines;
   Pb__Scene *newscene;
+  size_t n_scenes;
+  Pb__Scene **scenes;
 };
 #define PB__PACKAGE__INIT \
  { PROTOBUF_C_MESSAGE_INIT (&pb__package__descriptor) \
-    , 0, 0, 0, 0, 0,NULL, 0,NULL, NULL }
+    , 0, 0, 0, 0, 0,NULL, 0,NULL, NULL, 0,NULL }
 
 
 struct  _Pb__KeyFrame

@@ -20,6 +20,7 @@ typedef enum
 } KLDrawCommandType;
 
 typedef enum {
+	KLPackageType_None = -1,
 	KLPackageType_DrawCommand = 0,
     KLPackageType_SwitchScenePage,
     KLPackageType_CleanDraw,
@@ -83,6 +84,7 @@ typedef struct janus_whiteboard_result {
 	void* keyframe_buf;
 	int   command_len;
 	void* command_buf;
+	KLDataPackageType package_type;
 } janus_whiteboard_result;
 
 /*! \brief Initialize the whiteboard code
