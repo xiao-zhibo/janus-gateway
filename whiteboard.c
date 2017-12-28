@@ -377,7 +377,28 @@ int janus_whiteboard_add_scenes(janus_whiteboard * whiteboard, Pb__Scene *newSce
 	j_scene->page_num = newScene->pagecount;
 	j_scene->page_keyframes = g_malloc0(sizeof(Pb__KeyFrame*) * j_scene->page_num);
 	j_scene->page_keyframe_maxnum = 0;
+	newScene->index = whiteboard->scene_num;
 	whiteboard->scenes[whiteboard->scene_num ++] = j_scene;
+
+	/*! 将 keyframe 保存到文件 */
+	size_t length = pb__scene__get_packed_size(newScene);
+	void *buffer = g_malloc0(length);
+	if (length!= 0 && buffer == NULL) {
+		JANUS_LOG(LOG_WARN, "Save scene data fail. Out of memory when allocating memory for tmp file buffer\n");
+		return -1;
+	}
+
+	pb__scene__pack(newScene, buffer);
+	fseek(whiteboard->scene_file, 0, SEEK_END);
+	size_t ret = fwrite(&length, sizeof(size_t), 1, whiteboard->scene_file);
+	if (ret == 1) {
+	    ret = janus_whiteboard_write_packet_to_file_l(buffer, length, whiteboard->scene_file);
+	    ret = (ret==0) ? 1 : 0;//由于以上函数封装的关系，此处需要对返回的结果处理下 
+	}
+	if (ret == 0) {
+		JANUS_LOG(LOG_ERR, "Error happens when saving keyframe packet index to basefile: %s\n", whiteboard->filename);
+		return -1;
+	}
 }
 
 /*! */
@@ -793,6 +814,8 @@ int janus_whiteboard_generate_and_save_l(janus_whiteboard *whiteboard) {
 		JANUS_LOG(LOG_ERR, "Oop, out of memory when alloc memory for creating header.pageindexs\n");
 		return -1;
 	}
+	header.n_scenes = whiteboard->scene_num;
+	header.scenes = g_malloc0(sizeof(Pb__Scene*) * header.n_scenes);
 
 	// 将keyframe读取进内存
 	fseek(whiteboard->header_file, 0L, SEEK_SET);
@@ -822,15 +845,15 @@ int janus_whiteboard_generate_and_save_l(janus_whiteboard *whiteboard) {
 	}
 
 	// 将switch scene读进内存
-	fseek(whiteboard->scene_file, 0L, SEEK_SET);
+	fseek(whiteboard->page_file, 0L, SEEK_SET);
 	size_t switchscene_len = 0;
-	while(fread(&switchscene_len, sizeof(switchscene_len), 1, whiteboard->scene_file) == 1) {
+	while(fread(&switchscene_len, sizeof(switchscene_len), 1, whiteboard->page_file) == 1) {
 		char *buffer = g_malloc0(switchscene_len);
 		if (buffer == NULL) {
 			JANUS_LOG(LOG_ERR, "Oop, out of memory when alloc memory for reading scene file\n");
 			break;
 		}
-		if (janus_whiteboard_read_packet_from_file_l(buffer, switchscene_len, whiteboard->scene_file) < 0) {
+		if (janus_whiteboard_read_packet_from_file_l(buffer, switchscene_len, whiteboard->page_file) < 0) {
 			JANUS_LOG(LOG_ERR, "Error happens when reading switch scene index packet from basefile: %s\n", whiteboard->filename);
 			g_free(buffer);
 			break;
@@ -844,6 +867,27 @@ int janus_whiteboard_generate_and_save_l(janus_whiteboard *whiteboard) {
 				g_free(buffer);
 				break;
 			}
+		}
+		g_free(buffer);
+	}
+
+	// 将scene data读进内存
+	fseek(whiteboard->scene_file, 0L, SEEK_SET);
+	size_t scene_data_len = 0;
+	while(fread(&scene_data_len, sizeof(scene_data_len), 1, whiteboard->scene_file) == 1) {
+		char *buffer = g_malloc0(scene_data_len);
+		if (buffer == NULL) {
+			JANUS_LOG(LOG_ERR, "Oop, out of memory when alloc memory for reading scene file\n");
+			break;
+		}
+		if (janus_whiteboard_read_packet_from_file_l(buffer, scene_data_len, whiteboard->scene_file) < 0) {
+			JANUS_LOG(LOG_ERR, "Error happens when reading switch scene data from basefile: %s\n", whiteboard->filename);
+			g_free(buffer);
+			break;
+		}
+		Pb__Scene *tmp_scene = pb__scene__unpack(NULL, scene_data_len, (const uint8_t*)buffer);
+		if (tmp_scene != NULL && tmp_scene->index < header.n_scenes) {
+			header.scenes[tmp_scene->index] = tmp_scene;
 		}
 		g_free(buffer);
 	}
@@ -933,6 +977,8 @@ int janus_whiteboard_free(janus_whiteboard *whiteboard) {
 	whiteboard->scene_file = NULL;
 	fclose(whiteboard->header_file);
 	whiteboard->header_file = NULL;
+	fclose(whiteboard->page_file);
+	whiteboard->page_file = NULL;
 	fclose(whiteboard->file);
 	whiteboard->file = NULL;
 	/*! 清理用于快速定位的关键帧索引 */
