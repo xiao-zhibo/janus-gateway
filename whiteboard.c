@@ -672,10 +672,11 @@ janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboa
 		return result;
 	}
 	package->timestamp = janus_whiteboard_get_current_time_l() - whiteboard->start_timestamp;
-
+	JANUS_LOG(LOG_INFO, "whiteboard: package——type：%d\n", package->type);
 	if (package->type == KLPackageType_AddScene) {
 		// add whiteboard scene
 		result.ret = janus_whiteboard_add_scenes(whiteboard, package->newscene);
+		JANUS_LOG(LOG_INFO, "whiteboard:newscene: %s, %d, %d", package->newscene->resource, package->newscene->pagecount, package->newscene->index);
 		result.command_len = pb__package__get_packed_size(package);
 		result.command_buf = g_malloc0(result.command_len);
 		pb__package__pack(package, result.command_buf);

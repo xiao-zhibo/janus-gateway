@@ -3217,7 +3217,7 @@ void janus_videoroom_incoming_data(janus_plugin_session *handle, char *buf, int 
 		janus_mutex_unlock(&participant->data_recv_mutex);
 		return;
 	}
-	JANUS_LOG(LOG_INFO, "Got a DataChannel message success......\n");
+	JANUS_LOG(LOG_INFO, "Got a DataChannel message success......%d\n", participant->xiao_data_packet_header->msg_type);
 	/* Save the message if we're recording */
 	// int ret = janus_recorder_save_frame(participant->drc, participant->xiao_data_packet_buf, participant->xiao_data_packet_received);
 	/* data数据就是白板数据，使用保存白板的格式保存之*/
