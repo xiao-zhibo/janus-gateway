@@ -3229,7 +3229,7 @@ void janus_videoroom_incoming_data(janus_plugin_session *handle, char *buf, int 
 		if (wret.ret > 0) {
 			if (wret.package_type == KLPackageType_AddScene) {
 				/* Relay to all listeners */
-				JANUS_LOG(LOG_INFO, "Return added scene command to viewer: %d, %d\n", wret.command_len, wret.buf);
+				JANUS_LOG(LOG_INFO, "Return added scene command to viewer: %d, %d\n", wret.command_len, wret.command_buf);
 				janus_videoroom_data_packet packet;
 				packet.data = wret.command_buf;
 				packet.length = wret.command_len;
