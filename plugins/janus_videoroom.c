@@ -5214,7 +5214,7 @@ static int janus_videoroom_wrap_datachannel_data_packet(janus_videoroom_particip
 	guint32 pkt_index     = 0;
 	memcpy((void*)&pkt_index,  (const void*)(buf + pkg_offset), sizeof(pkt_index));
 	pkg_offset += sizeof(pkt_index);
-	//JANUS_LOG(LOG_WARN, "version:%d, total_size:%zu, chunked:%d, pkt_index:%d\n", version, total_size, chunked, pkt_index);
+	JANUS_LOG(LOG_INFO, "version:%d, type:%d, total_size:%zu, chunked:%d, pkt_index:%d\n", version, msg_type, total_size, chunked, pkt_index);
 	if (chunked > 1) {
 		JANUS_LOG(LOG_WARN, "Unknown whiteboard packets\n");
 		return -1;
