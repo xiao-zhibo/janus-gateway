@@ -3210,6 +3210,7 @@ void janus_videoroom_incoming_data(janus_plugin_session *handle, char *buf, int 
 		return;
 	}
 	janus_mutex_lock(&participant->data_recv_mutex);
+	JANUS_LOG(LOG_INFO, "Got a DataChannel message to forward, result\n");
 	if (janus_videoroom_wrap_datachannel_data_packet(participant, buf, len) <= 0) {
 		// 需要继续等待更多的数据封包或者遇到无法处理的情况
 		janus_mutex_unlock(&participant->data_recv_mutex);
