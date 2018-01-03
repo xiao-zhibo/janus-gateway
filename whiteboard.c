@@ -681,6 +681,7 @@ janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboa
 		result.command_buf = g_malloc0(result.command_len);
 		pb__package__pack(package, result.command_buf);
 		result.package_type = KLPackageType_AddScene;
+		janus_mutex_unlock_nodebug(&whiteboard->mutex);
 		return result;
 	} else if (package->type == KLPackageType_SceneData) {
 		// get whiteboard scene data
@@ -692,6 +693,7 @@ janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboa
 		result.command_buf = g_malloc0(result.command_len);
 		pb__package__pack(package, result.command_buf);
 		result.package_type = KLPackageType_SceneData;
+		janus_mutex_unlock_nodebug(&whiteboard->mutex);
 		return result;
 	}
 	if (package->type == KLPackageType_SwitchScenePage) {
