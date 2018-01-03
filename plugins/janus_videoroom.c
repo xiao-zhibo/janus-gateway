@@ -3259,6 +3259,7 @@ void janus_videoroom_incoming_data(janus_plugin_session *handle, char *buf, int 
 			}
 		} else {
 			/* Relay to all listeners */
+			JANUS_LOG(LOG_INFO, "other meesage ---> send to others.\n");
 			janus_videoroom_data_packet packet;
 			packet.data = buf;
 			packet.length = len;
