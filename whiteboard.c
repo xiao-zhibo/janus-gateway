@@ -685,13 +685,21 @@ janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboa
 		return result;
 	} else if (package->type == KLPackageType_SceneData) {
 		// get whiteboard scene data
-		Pb__Scene **scenes = g_malloc0(sizeof(Pb__Scene*) * whiteboard->scene_num);
-		result.ret = janus_whiteboard_scenes_data(whiteboard, scenes);
-		package->n_scenes = result.ret;
-		package->scenes = scenes;
-		result.command_len = pb__package__get_packed_size(package);
-		result.command_buf = g_malloc0(result.command_len);
-		pb__package__pack(package, result.command_buf);
+		result.ret = 1;
+		if (whiteboard->scene_num > 0) {
+			JANUS_LOG(LOG_INFO, "whiteboard：KLPackageType_SceneData\n");
+			Pb__Scene **scenes = g_malloc0(sizeof(Pb__Scene*) * whiteboard->scene_num);
+			JANUS_LOG(LOG_INFO, "whiteboard:%d\n", scenes != NULL);
+			result.ret = janus_whiteboard_scenes_data(whiteboard, scenes);
+			JANUS_LOG(LOG_INFO, "whiteboard:scene_num：%d\n", result.ret);
+			package->n_scenes = result.ret;
+			package->scenes = scenes;
+			result.command_len = pb__package__get_packed_size(package);
+			JANUS_LOG(LOG_INFO, "whiteboard:packed_size%d\n", result.command_len);
+			result.command_buf = g_malloc0(result.command_len);
+			int size = pb__package__pack(package, result.command_buf);
+			JANUS_LOG(LOG_INFO, "whiteboard:command_buf_size%d\n", size);
+		}
 		result.package_type = KLPackageType_SceneData;
 		janus_mutex_unlock_nodebug(&whiteboard->mutex);
 		return result;
