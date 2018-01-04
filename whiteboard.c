@@ -405,6 +405,7 @@ int janus_whiteboard_add_scenes(janus_whiteboard * whiteboard, Pb__Scene *newSce
 int janus_whiteboard_scenes_data(janus_whiteboard * whiteboard, Pb__Scene **scenes) {
 	janus_scene **j_scenes = whiteboard->scenes;
 	for (int i = 0 ; i < whiteboard->scene_num; i ++) {
+		scenes[i] = g_malloc0(sizeof(Pb__Scene));
 		scenes[i]->resource = g_strdup(j_scenes[i]->source_url);
 		scenes[i]->pagecount = j_scenes[i]->page_num;
 		scenes[i]->index = i;
@@ -682,6 +683,7 @@ janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboa
 		pb__package__pack(package, result.command_buf);
 		result.package_type = KLPackageType_AddScene;
 		janus_mutex_unlock_nodebug(&whiteboard->mutex);
+		pb__package__free_unpacked(package, NULL);
 		return result;
 	} else if (package->type == KLPackageType_SceneData) {
 		// get whiteboard scene data
@@ -699,9 +701,14 @@ janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboa
 			result.command_buf = g_malloc0(result.command_len);
 			int size = pb__package__pack(package, result.command_buf);
 			JANUS_LOG(LOG_INFO, "whiteboard:command_buf_size%d\n", size);
+			for (int i = 0; i < whiteboard->scene_num; i ++) {
+				pb__scene__free_unpacked(scenes[i], NULL);
+			}
+			g_free(scenes);
 		}
 		result.package_type = KLPackageType_SceneData;
 		janus_mutex_unlock_nodebug(&whiteboard->mutex);
+		pb__package__free_unpacked(package, NULL);
 		return result;
 	}
 	if (package->type == KLPackageType_SwitchScenePage) {
@@ -710,6 +717,7 @@ janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboa
 			JANUS_LOG(LOG_WARN, "Get a request to switch scene page, but currenttly the whiteboard is on the target %d scene %d page\n", package->scene, package->page);
 		    janus_mutex_unlock_nodebug(&whiteboard->mutex);
 		    result.ret = 0;
+		    pb__package__free_unpacked(package, NULL);
 			return result;
 		}
 		janus_whiteboard_on_receive_switch_scene_l(whiteboard, package);
@@ -746,6 +754,7 @@ janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboa
 		}
 		janus_mutex_unlock_nodebug(&whiteboard->mutex);
 		JANUS_LOG(LOG_VERB, "Get scene data with keyframe:%d, command:%d\n", result.keyframe_len, result.command_len);
+		pb__package__free_unpacked(package, NULL);
 		result.ret = 1;
 		return result;
 	}
