@@ -703,7 +703,7 @@ janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboa
 			int size = pb__package__pack(package, result.command_buf);
 			JANUS_LOG(LOG_INFO, "whiteboard:command_buf_size%d\n", size);
 			for (int i = 0; i < whiteboard->scene_num; i ++) {
-				pb__scene__free_unpacked(scenes[i], NULL);
+				g_free(scenes[i]);
 			}
 			g_free(scenes);
 		}

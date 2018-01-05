@@ -3248,6 +3248,8 @@ void janus_videoroom_incoming_data(janus_plugin_session *handle, char *buf, int 
 					janus_videoroom_relay_participant_packet(p, wret.command_buf, &header);
 				}
 				janus_mutex_unlock(&videoroom->participants_mutex);
+				g_free(wret.command_buf);
+				wret.command_buf = NULL;
 			} else {
 			
 				/* 返回关键帧 */
