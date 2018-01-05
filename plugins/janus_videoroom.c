@@ -3287,7 +3287,7 @@ void janus_videoroom_incoming_data(janus_plugin_session *handle, char *buf, int 
 	participant->xiao_data_packet_received = 0;
 	g_free(participant->xiao_data_packet_header);
 	participant->xiao_data_packet_header = NULL;
-	JANUS_LOG(LOG_INFO, "Got a DataChannel message deal success.")
+	JANUS_LOG(LOG_INFO, "Got a DataChannel message deal success.");
 	janus_mutex_unlock(&participant->data_recv_mutex);
 }
 
