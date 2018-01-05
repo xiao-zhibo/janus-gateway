@@ -1027,6 +1027,8 @@ int janus_whiteboard_free(janus_whiteboard *whiteboard) {
 		}
 		g_free(scene_data->page_keyframes);
 		scene_data->page_keyframes = NULL;
+		g_free(scene_data);
+		whiteboard->scenes[i] = NULL;
 	}
 	g_free(whiteboard->scenes);
 	whiteboard->scene_num = 0;
