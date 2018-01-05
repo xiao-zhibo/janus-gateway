@@ -371,7 +371,7 @@ janus_whiteboard *janus_whiteboard_create(const char *dir, const char *filename,
 }
 
 /*! */
-int janus_whiteboard_add_scenes(janus_whiteboard * whiteboard, Pb__Scene *newScene) {
+int janus_whiteboard_add_scenes(janus_whiteboard *whiteboard, Pb__Scene *newScene) {
 	janus_scene *j_scene = g_malloc0(sizeof(janus_scene));
 	j_scene->source_url = g_strdup(newScene->resource);
 	j_scene->page_num = newScene->pagecount;
@@ -399,6 +399,7 @@ int janus_whiteboard_add_scenes(janus_whiteboard * whiteboard, Pb__Scene *newSce
 		JANUS_LOG(LOG_ERR, "Error happens when saving keyframe packet index to basefile: %s\n", whiteboard->filename);
 		return -1;
 	}
+	return 1;
 }
 
 /*! */
@@ -677,7 +678,7 @@ janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboa
 	if (package->type == KLPackageType_AddScene) {
 		// add whiteboard scene
 		result.ret = janus_whiteboard_add_scenes(whiteboard, package->newscene);
-		JANUS_LOG(LOG_INFO, "whiteboard:newscene: %s, %d, %d", package->newscene->resource, package->newscene->pagecount, package->newscene->index);
+		JANUS_LOG(LOG_INFO, "whiteboard:newscene: %s, %d, %d\n", package->newscene->resource, package->newscene->pagecount, package->newscene->index);
 		result.command_len = pb__package__get_packed_size(package);
 		result.command_buf = g_malloc0(result.command_len);
 		pb__package__pack(package, result.command_buf);
