@@ -3209,6 +3209,8 @@ void janus_videoroom_incoming_data(janus_plugin_session *handle, char *buf, int 
 		JANUS_LOG(LOG_WARN, "Data packet length is must bigger than %d", JAVUS_VIDEOROOM_DATA_PKT_HEADER_LEN);
 		return;
 	}
+	JANUS_LOG(LOG_INFO, "Got a DataChannel message to forward, result\n");
+	return;
 	janus_mutex_lock(&participant->data_recv_mutex);
 	JANUS_LOG(LOG_INFO, "Got a DataChannel message to forward, result\n");
 	if (janus_videoroom_wrap_datachannel_data_packet(participant, buf, len) <= 0) {
