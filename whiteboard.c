@@ -698,10 +698,10 @@ janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboa
 			JANUS_LOG(LOG_INFO, "whiteboard:scene_num：%d\n", result.ret);
 			out_package.n_scenes = result.ret;
 			out_package.scenes = scenes;
-			result.command_len = pb__package__get_packed_size(out_package);
+			result.command_len = pb__package__get_packed_size(&out_package);
 			JANUS_LOG(LOG_INFO, "whiteboard:packed_size%d\n", result.command_len);
 			result.command_buf = g_malloc0(result.command_len);
-			int size = pb__package__pack(out_package, result.command_buf);
+			int size = pb__package__pack(&out_package, result.command_buf);
 			JANUS_LOG(LOG_INFO, "whiteboard:command_buf_size%d\n", size);
 			for (int i = 0; i < whiteboard->scene_num; i ++) {
 				g_free(scenes[i]);
