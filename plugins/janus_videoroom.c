@@ -3234,8 +3234,7 @@ void janus_videoroom_incoming_data(janus_plugin_session *handle, char *buf, int 
 			header.msg_type = MESSAGE_TYPE_WHITEBOARD;
 
 			if (wret.package_type == KLPackageType_AddScene) {
-				/* Relay to all listeners */
-				JANUS_LOG(LOG_INFO, "DataChannel Return added scene command to viewer: %d, %d\n", wret.command_len, wret.command_buf);
+				JANUS_LOG(LOG_INFO, "DataChannel Return added scene command to participant: %d, %d\n", wret.command_len, wret.command_buf);
 
 				header.total_size = wret.command_len;
 				janus_videoroom *videoroom = participant->room;
@@ -3248,8 +3247,8 @@ void janus_videoroom_incoming_data(janus_plugin_session *handle, char *buf, int 
 					janus_videoroom_relay_participant_packet(p, wret.command_buf, &header);
 				}
 				janus_mutex_unlock(&videoroom->participants_mutex);
-				g_free(wret.command_buf);
-				wret.command_buf = NULL;
+				// g_free(wret.command_buf);
+				// wret.command_buf = NULL;
 			} else {
 			
 				/* 返回关键帧 */
