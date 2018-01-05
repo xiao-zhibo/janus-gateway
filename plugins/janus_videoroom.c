@@ -2779,7 +2779,7 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 			JANUS_VIDEOROOM_ERROR_MISSING_ELEMENT, JANUS_VIDEOROOM_ERROR_INVALID_ELEMENT, JANUS_VIDEOROOM_ERROR_UNAUTHORIZED);
 		if(error_code != 0) {
 			janus_mutex_unlock(&videoroom->participants_mutex);
-			goto plugin_response;
+			goto plugin_response; 
 		}
 		
 		/* Relay to all participant */
@@ -3229,35 +3229,43 @@ void janus_videoroom_incoming_data(janus_plugin_session *handle, char *buf, int 
 		
 		/* ret 大于0时表示发起者发出了指令，将有数据需要返回. */
 		if (wret.ret > 0) {
-			if (wret.package_type == KLPackageType_AddScene) {
-				/* Relay to all listeners */
-				JANUS_LOG(LOG_INFO, "DataChannel Return added scene command to viewer: %d, %d\n", wret.command_len, wret.command_buf);
-				janus_videoroom_data_packet packet;
-				packet.data = wret.command_buf;
-				packet.length = wret.command_len;
-				janus_mutex_lock_nodebug(&participant->listeners_mutex);
-				g_slist_foreach(participant->listeners, janus_videoroom_relay_data_packet, &packet);
-				janus_mutex_unlock_nodebug(&participant->listeners_mutex);
-			}
-			
-			/* 返回关键帧 */
 			janus_xiao_data_packet_header header;
 			header.version = JANUS_DATA_PKT_VERSION;
 			header.msg_type = MESSAGE_TYPE_WHITEBOARD;
-			if (wret.keyframe_len > 0 && wret.keyframe_buf != NULL) {
-				JANUS_LOG(LOG_INFO, "DataChannel Return keyframe to viewer.\n");
-				header.total_size = wret.keyframe_len;
-			    janus_videoroom_relay_participant_packet(participant, wret.keyframe_buf, &header);
-			    g_free(wret.keyframe_buf);
-			    wret.keyframe_buf = NULL;
-			}
-			/* 返回指令帧 */
-			if (wret.command_len > 0 && wret.command_buf != NULL) {
-				JANUS_LOG(LOG_INFO, "DataChannel Return normal packeted command frame to viewer.\n");
+
+			if (wret.package_type == KLPackageType_AddScene) {
+				/* Relay to all listeners */
+				JANUS_LOG(LOG_INFO, "DataChannel Return added scene command to viewer: %d, %d\n", wret.command_len, wret.command_buf);
+
 				header.total_size = wret.command_len;
-				janus_videoroom_relay_participant_packet(participant, wret.command_buf, &header);
-				g_free(wret.command_buf);
-				wret.command_buf = NULL;
+				janus_videoroom *videoroom = participant->room;
+				janus_mutex_lock(&videoroom->participants_mutex);
+				GHashTableIter iter;
+				gpointer value;
+				g_hash_table_iter_init(&iter, videoroom->participants);
+				while (!videoroom->destroyed && g_hash_table_iter_next(&iter, NULL, &value)) {
+					janus_videoroom_participant *p = value;
+					janus_videoroom_relay_participant_packet(p, wret.command_buf, &header);
+				}
+				janus_mutex_unlock(&videoroom->participants_mutex);
+			} else {
+			
+				/* 返回关键帧 */
+				if (wret.keyframe_len > 0 && wret.keyframe_buf != NULL) {
+					JANUS_LOG(LOG_INFO, "DataChannel Return keyframe to viewer.\n");
+					header.total_size = wret.keyframe_len;
+				    janus_videoroom_relay_participant_packet(participant, wret.keyframe_buf, &header);
+				    g_free(wret.keyframe_buf);
+				    wret.keyframe_buf = NULL;
+				}
+				/* 返回指令帧 */
+				if (wret.command_len > 0 && wret.command_buf != NULL) {
+					JANUS_LOG(LOG_INFO, "DataChannel Return normal packeted command frame to viewer.\n");
+					header.total_size = wret.command_len;
+					janus_videoroom_relay_participant_packet(participant, wret.command_buf, &header);
+					g_free(wret.command_buf);
+					wret.command_buf = NULL;
+				}
 			}
 		} else {
 			/* Relay to all listeners */
