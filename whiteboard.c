@@ -362,7 +362,7 @@ janus_whiteboard *janus_whiteboard_create(const char *dir, const char *filename,
 	whiteboard->scene_page_packages = g_malloc0(sizeof(Pb__Package*) * MAX_PACKET_CAPACITY);
 	if (whiteboard->scene_page_packages) {
 	    whiteboard->scene_page_package_num = janus_whiteboard_scene_page_data_l(whiteboard, whiteboard->scene, whiteboard->page, whiteboard->scene_page_packages);
-		if (whiteboard->scene_page_package_num < 0) {
+	    if (whiteboard->scene_page_package_num < 0) {
 	        whiteboard->scene_page_package_num = 0;
 	    }
 	} else {
@@ -441,6 +441,7 @@ void janus_whiteboard_packed_data_l(Pb__Package **packages, int num, janus_white
 		out_pkg.type  = KLPackageType_CleanDraw;
 	} else {
 		pb__package__init(&out_pkg);
+		out_pkg.page  = packages[0]->page;
 		out_pkg.scene = packages[0]->scene;
 		out_pkg.type  = KLPackageType_DrawCommand;
 		out_pkg.n_cmd = total_cmd_num;
