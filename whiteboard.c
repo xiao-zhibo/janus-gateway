@@ -362,6 +362,9 @@ janus_whiteboard *janus_whiteboard_create(const char *dir, const char *filename,
 	whiteboard->scene_page_packages = g_malloc0(sizeof(Pb__Package*) * MAX_PACKET_CAPACITY);
 	if (whiteboard->scene_page_packages) {
 	    whiteboard->scene_page_package_num = janus_whiteboard_scene_page_data_l(whiteboard, whiteboard->scene, whiteboard->page, whiteboard->scene_page_packages);
+		if (whiteboard->scene_page_package_num < 0) {
+	        whiteboard->scene_page_package_num = 0;
+	    }
 	} else {
 		whiteboard->scene_page_package_num = 0;
 		JANUS_LOG(LOG_ERR, "Out of Memory when alloc memory for %d struct scene_page_packages!\n", MAX_PACKET_CAPACITY);
