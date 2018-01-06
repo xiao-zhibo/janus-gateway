@@ -138,6 +138,7 @@ int janus_whiteboard_parse_or_create_header_l(janus_whiteboard *whiteboard) {
 		return -1;
 	}
 
+	whiteboard->page  = 0;
 	whiteboard->scene = 0;
 	size_t keyframe_len = 0;
 	fseek(whiteboard->header_file, 0, SEEK_SET);
@@ -506,6 +507,15 @@ int janus_whiteboard_scene_page_data_l(janus_whiteboard *whiteboard, int scene, 
 	if (whiteboard == NULL || whiteboard->file == NULL)
 		return -1;
 
+	if (scene < 0 || page < 0) {
+		JANUS_LOG(LOG_WARN, "\"scene_page_data_l\" got a request with invalid index(%d) or page(%d), set to default 0.\n", scene, page);
+	}
+	if (scene < 0) {
+		scene = 0;
+	}
+	if (page < 0) {
+		page  = 0;
+	}
 	int package_data_offset = 0;
 	janus_scene *scene_data = NULL;
 	if (scene < whiteboard->scene_num) {
@@ -744,6 +754,12 @@ janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboa
 		    result.ret = 0;
 		    pb__package__free_unpacked(package, NULL);
 			return result;
+		} else if (package->scene < 0 || package->page < 0) {
+			JANUS_LOG(LOG_WARN, "Got a request to switch scene page, but its scene(%d) or page(%d) index is invalid.\n", package->scene, package->page);
+		    result.ret = 0;
+		    pb__package__free_unpacked(package, NULL);
+			janus_mutex_unlock_nodebug(&whiteboard->mutex);
+			return result;
 		}
 		janus_whiteboard_on_receive_switch_scene_l(whiteboard, package);
 		whiteboard->scene = package->scene;
@@ -764,13 +780,13 @@ janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboa
 		}
 	} else if (package->type == KLPackageType_ScenePageData) {
 	    // 请求指定场景的白板数据
-		if ( package->scene == whiteboard->scene || package->scene == -1 ) {
-			// 当前场景
+		if ((package->scene == whiteboard->scene && package->page == whiteboard->page) || package->scene < 0 || package->page < 0) {
+			// -1的情况表示请求当前场景
 			janus_whiteboard_packed_data_l(whiteboard->scene_page_packages, whiteboard->scene_page_package_num, &result);
-		} else if (package->scene >= 0) {
+		} else {
 			// 其他场景
 			Pb__Package **packages = g_malloc0(sizeof(Pb__Package*) * MAX_PACKET_CAPACITY);
-			int num = janus_whiteboard_scene_page_data_l(whiteboard, package->scene, whiteboard->page, packages);
+			int num = janus_whiteboard_scene_page_data_l(whiteboard, package->scene, package->page, packages);
 			janus_whiteboard_packed_data_l(packages, num, &result);
 			for (int i = 0; i < num; i ++) {
 				pb__package__free_unpacked(packages[i], NULL);
