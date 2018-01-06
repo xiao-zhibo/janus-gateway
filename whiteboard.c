@@ -407,6 +407,7 @@ int janus_whiteboard_scenes_data(janus_whiteboard * whiteboard, Pb__Scene **scen
 	janus_scene **j_scenes = whiteboard->scenes;
 	for (int i = 0 ; i < whiteboard->scene_num; i ++) {
 		scenes[i] = g_malloc0(sizeof(Pb__Scene));
+		pb__scene__init(scenes[i]);
 		scenes[i]->resource = g_strdup(j_scenes[i]->source_url);
 		scenes[i]->pagecount = j_scenes[i]->page_num;
 		scenes[i]->index = i;
@@ -692,8 +693,15 @@ janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboa
 		if (whiteboard->scene_num > 0) {
 			JANUS_LOG(LOG_INFO, "whiteboard：KLPackageType_SceneData\n");
 			Pb__Scene **scenes = g_malloc0(sizeof(Pb__Scene*) * whiteboard->scene_num);
-			Pb__Package out_package = *package;
+			if (scenes == NULL) {
+				JANUS_LOG(LOG_ERR, "out of memory when generate space for SceneData\n");
+				result.ret = -1;
+				pb__package__free_unpacked(package, NULL);
+				janus_mutex_unlock_nodebug(&whiteboard->mutex);
+				return result;
+			}
 			JANUS_LOG(LOG_INFO, "whiteboard:%d\n", scenes != NULL);
+			Pb__Package out_package = *package;
 			result.ret = janus_whiteboard_scenes_data(whiteboard, scenes);
 			JANUS_LOG(LOG_INFO, "whiteboard:scene_num：%d\n", result.ret);
 			out_package.n_scenes = result.ret;
