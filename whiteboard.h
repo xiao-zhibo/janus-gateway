@@ -35,6 +35,7 @@ typedef enum {
 typedef struct janus_scene {
 	char *source_url;
 	int page_num;
+	int type;
 
 	/*! 坐标存page, 指针指向相应的keyframe。用于快速定位筛选出符合的场景数据给回前端 */
 	Pb__KeyFrame **page_keyframes;
