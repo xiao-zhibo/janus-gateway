@@ -608,6 +608,13 @@ typedef struct janus_xiao_data_packet_header {
 	guint64 total_size;
 } janus_xiao_data_packet_header;
 
+typedef struct janus_xiao_data_packet {
+	unsigned char version;
+	unsigned char msg_type;
+	guint64 total_size;
+	char  *xiao_data_packet_buf;
+} janus_xiao_data_packet;
+
 typedef struct janus_videoroom_participant {
 	janus_videoroom_session *session;
 	janus_videoroom *room;	/* Room */
@@ -2781,22 +2788,63 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 			janus_mutex_unlock(&videoroom->participants_mutex);
 			goto plugin_response; 
 		}
-		
+		typedef struct janus_xiao_data_packet {
+			unsigned char version;
+			unsigned char msg_type;
+			guint64 total_size;
+			char  *xiao_data_packet_buf;
+		} janus_xiao_data_packet;
 		/* Relay to all participant */
-		janus_xiao_data_packet_header *header = g_malloc0(sizeof(janus_xiao_data_packet_header));
-		header->version = 1;
-		header->msg_type = MESSAGE_TYPE_SYSTEM;
-		header->total_size = len;
-
-		GHashTableIter iter;
-		gpointer value;
-		g_hash_table_iter_init(&iter, videoroom->participants);
-		while (!videoroom->destroyed && g_hash_table_iter_next(&iter, NULL, &value)) {
-			janus_videoroom_participant *p = value;
-			janus_videoroom_relay_participant_packet(p, content, header);
+		janus_xiao_data_packet *xiao_packet = g_malloc0(sizeof(janus_xiao_data_packet));
+		if (janus_videoroom_wrap__packet(xiao_packet, char *buf, int len) < 0) {
+			janus_mutex_unlock(&videoroom->participants_mutex);
+			ANUS_LOG(LOG_ERR, "decode the message error.");
+			goto plugin_response; 
 		}
-		g_free(header);
-		g_free(content);
+		if (xiao_packet->msg_type == MESSAGE_TYPE_WHITEBOARD) {
+		   /*@returns wret 为白板数据请求封装。前段有部分特殊指令需要返回关键帧或普通的指令帧 */
+			janus_whiteboard_result wret = janus_whiteboard_save_package(videoroom->whiteboard, 
+				xiao_packet->xiao_data_packet_buf, xiao_packet->xiao_data_packet_received);
+			JANUS_LOG(LOG_INFO, "Got a DataChannel message (%d bytes) to forward, result: %d,%d\n", wret.keyframe_len+wret.command_len, wret.ret, wret.package_type);
+			
+			/* ret 大于0时表示发起者发出了指令，将有数据需要返回. */
+			if (wret.ret > 0) {
+				if (wret.package_type == KLPackageType_AddScene) {
+					JANUS_LOG(LOG_INFO, "DataChannel Return added scene command to participant: %d, %d\n", wret.command_len, wret.command_buf);
+
+					if (xiao_packet->xiao_data_packet_buf) {
+						g_free(xiao_data_packet_buf);
+					}
+					xiao_packet->xiao_data_packet_buf = wret.command_buf;
+					xiao_packet->total_size = wret.command_len;
+					
+					janus_videoroom *videoroom = participant->room;
+					janus_mutex_lock(&videoroom->participants_mutex);
+					GHashTableIter iter;
+					gpointer value;
+					g_hash_table_iter_init(&iter, videoroom->participants);
+					while (!videoroom->destroyed && g_hash_table_iter_next(&iter, NULL, &value)) {
+						janus_videoroom_participant *p = value;
+						janus_videoroom_relay_participant_packet2(p, xiao_packet);
+					}
+					janus_mutex_unlock(&videoroom->participants_mutex);
+				}
+			}
+		} else {
+			GHashTableIter iter;
+			gpointer value;
+			g_hash_table_iter_init(&iter, videoroom->participants);
+			while (!videoroom->destroyed && g_hash_table_iter_next(&iter, NULL, &value)) {
+				janus_videoroom_participant *p = value;
+				janus_videoroom_relay_participant_packet2(p, xiao_packet);
+			}
+		}
+		if (xiao_packet) {
+			if (xiao_packet->xiao_data_packet_buf) {
+				g_free(xiao_packet->xiao_data_packet_buf);
+			}
+			g_free(xiao_packet);
+		}
 
 		janus_mutex_unlock(&videoroom->participants_mutex);
 		
@@ -5347,3 +5395,144 @@ static void janus_videoroom_relay_participant_packet(janus_videoroom_participant
 	}
 	return;
 }
+
+/* 需要重新封包。确保不大于64KB一个包 | version | type | total size | chunk | index | data buf | */
+static void janus_videoroom_relay_participant_packet2(janus_videoroom_participant *participant, janus_xiao_data_packet *xiao_packet) {
+	if(!participant || !participant->session || !xiao_packet) {
+		return;
+	}
+	janus_videoroom_session *session = participant->session;
+	if(!session || !session->handle) {
+		return;
+	}
+	if(!session->started) {
+		return;
+	}
+	char *buf = xiao_packet->xiao_data_packet_buf;
+	guint64 len = xiao_packet->total_size;
+	if(gateway != NULL && buf != NULL && len > 0) {
+		janus_mutex_lock(&participant->data_send_mutex);
+		JANUS_LOG(LOG_VERB, "Forwarding DataChannel message (%d bytes) to viewer.\n", len);
+		unsigned char version = xiao_packet->version;
+		unsigned char msg_type = xiao_packet->msg_type;
+		guint64 total_size    = xiao_packet->total_size;//Byte
+		unsigned char chunked = 0;//是否拆包
+		guint32 pkt_index     = 0;
+		guint64 data_writen   = 0;//已经写入
+		guint64 data_writing  = 0;//等待写入
+		const guint64 d_limit = JAVUS_VIDEOROOM_DATA_PKT_LIMIT - JAVUS_VIDEOROOM_DATA_PKT_HEADER_LEN;
+		char *chunk_pkt       = g_malloc0(JAVUS_VIDEOROOM_DATA_PKT_LIMIT);
+		if (chunk_pkt == NULL) {
+			JANUS_LOG(LOG_ERR, "Memory error.\n");
+			janus_mutex_unlock(&participant->data_send_mutex);
+			return;
+		}
+		do {
+			memset(chunk_pkt, 0, JAVUS_VIDEOROOM_DATA_PKT_LIMIT);
+			/* 拷贝包头 */
+			unsigned pkt_offset = 0;
+			memcpy((void*)(chunk_pkt + pkt_offset), (void*)&version, sizeof(version));
+			pkt_offset += sizeof(version);
+			memcpy((void*)(chunk_pkt + pkt_offset), (void*)&msg_type, sizeof(msg_type));
+			pkt_offset += sizeof(msg_type);
+			memcpy((void*)(chunk_pkt + pkt_offset), (void*)&total_size, sizeof(total_size));
+			pkt_offset += sizeof(total_size);
+			if (data_writen + d_limit >= total_size) {
+				chunked |= 0;/* 如果拆包，那就是继续为1 */
+				data_writing = total_size - data_writen;
+			} else {
+				chunked = 1;
+				data_writing = d_limit;
+			}
+			memcpy((void*)(chunk_pkt + pkt_offset), (void*)&chunked, sizeof(chunked));
+			pkt_offset += sizeof(chunked);
+			memcpy((void*)(chunk_pkt + pkt_offset), (void*)&pkt_index, sizeof(pkt_index));
+			pkt_offset += sizeof(pkt_index);
+			if (pkt_offset != JAVUS_VIDEOROOM_DATA_PKT_HEADER_LEN) {
+				JANUS_LOG(LOG_WARN, "packet offset %d not equal default length %d, reset to default?\n", pkt_offset, JAVUS_VIDEOROOM_DATA_PKT_HEADER_LEN);
+				pkt_offset = JAVUS_VIDEOROOM_DATA_PKT_HEADER_LEN;
+			}
+
+			/* 拷贝并分发内容分块 */
+			memcpy((void*)(chunk_pkt + pkt_offset), (void*)(buf + data_writen), data_writing);
+			gateway->relay_data(session->handle, chunk_pkt, pkt_offset + data_writing);
+			JANUS_LOG(LOG_VERB, ">Forwarding DataChannel message (%zu bytes) to viewer. chunk:%d, index:%d\n", data_writing, chunked, pkt_index);
+			pkt_index   += 1;
+			data_writen += data_writing;
+
+		} while(data_writen < total_size);
+		
+		g_free(chunk_pkt);
+		chunk_pkt = NULL;
+		janus_mutex_unlock(&participant->data_send_mutex);
+	}
+	return;
+}
+
+/*  */
+static int janus_videoroom_wrap__packet(janus_xiao_data_packet *xiao_packet, char *buf, int len) {
+	unsigned char version = (unsigned char)buf[0];
+	unsigned char msg_type = (unsigned char)buf[1];
+	guint64 pkg_offset = 2;
+
+	guint64 total_size    = 0;
+	memcpy((void*)&total_size, (const void*)(buf + pkg_offset), sizeof(total_size));
+	pkg_offset += sizeof(total_size);
+
+	unsigned char chunked = (unsigned char)buf[pkg_offset];//是否结束, 2+8
+	pkg_offset += sizeof(chunked);
+
+	guint32 pkt_index     = 0;
+	memcpy((void*)&pkt_index,  (const void*)(buf + pkg_offset), sizeof(pkt_index));
+	pkg_offset += sizeof(pkt_index);
+	JANUS_LOG(LOG_INFO, "version:%d, type:%d, total_size:%zu, chunked:%d, pkt_index:%d\n", version, msg_type, total_size, chunked, pkt_index);
+	if (chunked > 1) {
+		JANUS_LOG(LOG_WARN, "Unknown whiteboard packets\n");
+		return -1;
+	} else if (chunked) {
+		// 大包被拆分
+		// 开辟缓冲区
+		if (xiao_packet->xiao_data_packet_buf == NULL) {
+			xiao_packet->xiao_data_packet_buf = g_malloc0(total_size);
+			if (xiao_packet->xiao_data_packet_buf == NULL) {
+				JANUS_LOG(LOG_ERR, "Memory error on create whiteboard data packet buf\n");
+				return -1;
+			}
+			xiao_packet->xiao_data_packet_received = 0;
+		}
+
+		// 获取并复制内容到缓冲区上
+		guint64 real_data_size = len - JAVUS_VIDEOROOM_DATA_PKT_HEADER_LEN;
+		void *data_offset = xiao_packet->xiao_data_packet_buf + xiao_packet->xiao_data_packet_received;
+		memcpy(data_offset, (const void*)(buf + pkg_offset), real_data_size);
+		xiao_packet->xiao_data_packet_received += real_data_size;
+		if (xiao_packet->xiao_data_packet_received < total_size) {
+			return 0;// 没接收完， 等待继续接收
+		} else {
+			xiao_packet->xiao_data_packet_received = total_size;
+		}
+	} else {
+		// 没有被拆分的情况
+		if (xiao_packet->xiao_data_packet_buf) {
+			g_free(xiao_packet->xiao_data_packet_buf);
+			xiao_packet->xiao_data_packet_buf = NULL;
+		}
+		xiao_packet->xiao_data_packet_buf = g_malloc0(total_size);
+		if (xiao_packet->xiao_data_packet_buf == NULL) {
+			JANUS_LOG(LOG_ERR, "Memory error on create whiteboard data packet buf\n");
+			return -1;
+		}
+
+		memcpy(xiao_packet->xiao_data_packet_buf, (const void*)(buf + pkg_offset), total_size);
+		xiao_packet->xiao_data_packet_received = total_size;
+	}
+	if (xiao_packet->xiao_data_packet_header == NULL) {
+		xiao_packet->xiao_data_packet_header = g_malloc0(sizeof(janus_xiao_data_packet_header));
+	}
+	xiao_packet->xiao_data_packet_header->msg_type = msg_type;
+	xiao_packet->xiao_data_packet_header->version = version;
+	xiao_packet->xiao_data_packet_header->total_size = total_size;
+	return 1;
+}
+
+
