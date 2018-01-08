@@ -2801,6 +2801,7 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 			ANUS_LOG(LOG_ERR, "decode the message error.");
 			goto plugin_response; 
 		}
+		JANUS_LOG(LOG_INFO, "Got a DataChannel message (%d bytes) to forward, type: %d\n", xiao_packet->total_size, xiao_packet->msg_type);
 		if (xiao_packet->msg_type == MESSAGE_TYPE_WHITEBOARD) {
 		   /*@returns wret 为白板数据请求封装。前段有部分特殊指令需要返回关键帧或普通的指令帧 */
 			janus_whiteboard_result wret = janus_whiteboard_save_package(videoroom->whiteboard, 
@@ -2819,7 +2820,7 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 					xiao_packet->total_size = wret.command_len;
 					
 					janus_videoroom *videoroom = participant->room;
-					janus_mutex_lock(&videoroom->participants_mutex);
+					
 					GHashTableIter iter;
 					gpointer value;
 					g_hash_table_iter_init(&iter, videoroom->participants);
@@ -2827,10 +2828,10 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 						janus_videoroom_participant *p = value;
 						janus_videoroom_relay_participant_packet2(p, xiao_packet);
 					}
-					janus_mutex_unlock(&videoroom->participants_mutex);
 				}
 			}
 		} else {
+			JANUS_LOG(LOG_INFO, "Got a other DataChannel message (%d bytes) to forward, type: %d\n", xiao_packet->total_size, xiao_packet->msg_type);
 			GHashTableIter iter;
 			gpointer value;
 			g_hash_table_iter_init(&iter, videoroom->participants);
