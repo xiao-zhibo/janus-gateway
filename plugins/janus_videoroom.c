@@ -2768,7 +2768,7 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 		json_t *json_content = json_object_get(root, "content");
 		char *content = g_strdup(json_string_value(json_content));
 		guint64 len = strlen(content);
-		JANUS_LOG(LOG_INFO, "room: (%"SCNu64")    content: %s\n", room_id, content);
+		JANUS_LOG(LOG_INFO, "room: (%"SCNu64")\ncontent: %s\n", room_id, content);
 
 		janus_mutex_lock(&rooms_mutex);
 		janus_videoroom *videoroom = g_hash_table_lookup(rooms, &room_id);
@@ -2786,6 +2786,7 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 			JANUS_VIDEOROOM_ERROR_MISSING_ELEMENT, JANUS_VIDEOROOM_ERROR_INVALID_ELEMENT, JANUS_VIDEOROOM_ERROR_UNAUTHORIZED);
 		if(error_code != 0) {
 			janus_mutex_unlock(&videoroom->participants_mutex);
+			JANUS_LOG(LOG_ERR, "parameter secret error: %s\n", videoroom->secret);
 			goto plugin_response; 
 		}
 		typedef struct janus_xiao_data_packet {
@@ -2820,7 +2821,7 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 					xiao_packet->total_size = wret.command_len;
 					
 					janus_videoroom *videoroom = participant->room;
-					
+
 					GHashTableIter iter;
 					gpointer value;
 					g_hash_table_iter_init(&iter, videoroom->participants);
