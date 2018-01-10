@@ -407,6 +407,76 @@ int janus_whiteboard_add_scenes(janus_whiteboard *whiteboard, Pb__Scene *newScen
 	return 1;
 }
 
+janus_whiteboard_result janus_whiteboard_add_scene(janus_whiteboard *whiteboard, char *resource, int page_count, int type) {
+	JANUS_LOG(LOG_INFO, "janus_whiteboard_add_scene: %s, %d, %d\n", resource, page_count, type);
+	janus_whiteboard_result result = 
+	{
+		.ret          = -1, /* 大于0时表示发起者发出了指令，将有数据需要返回. */
+		.keyframe_len = 0,
+		.keyframe_buf = NULL,
+		.command_len  = 0,
+		.command_buf  = NULL,
+		.package_type = KLPackageType_None,
+	};
+
+	if(!whiteboard) {
+		JANUS_LOG(LOG_ERR, "Error saving frame. Whiteboard is empty\n");
+		return result;
+	}
+	if(page_count <= 0) {
+		JANUS_LOG(LOG_WARN, "scene page count <= 0: invalid parameter.\n");
+		return result;
+	}
+	JANUS_LOG(LOG_INFO, "000000000000000000000\n");
+	Pb__Package package;
+	pb__package__init(&package);
+	package.type = KLPackageType_AddScene;
+	JANUS_LOG(LOG_INFO, "11111111111111111111\n");
+	package.timestamp = janus_whiteboard_get_current_time_l() - whiteboard->start_timestamp;
+	package.newscene = g_malloc0(sizeof(Pb__Scene));
+	if (!package.newscene) {
+		JANUS_LOG(LOG_WARN, "Error malloc Pb__Scene\n");
+		return result;
+	}
+	JANUS_LOG(LOG_INFO, "222222222222222222\n");
+	pb__scene__init(package.newscene);
+	JANUS_LOG(LOG_INFO, "3333333333333333333\n");
+
+	JANUS_LOG(LOG_INFO, "janus_whiteboard_add_scene1111: %s, %d, %d\n", resource, page_count, type);
+	package.newscene->type = type;
+	package.newscene->resource = g_strdup(resource);
+	package.newscene->pagecount = page_count;
+	package.newscene->index = -1;
+
+	JANUS_LOG(LOG_INFO, "4444444444444444444\n");
+	janus_mutex_lock_nodebug(&whiteboard->mutex);
+	if(!whiteboard->file) {
+		janus_mutex_unlock_nodebug(&whiteboard->mutex);
+		g_free(package.newscene);
+		JANUS_LOG(LOG_WARN, "Error saving frame. whiteboard->file is empty\n");
+		return result;
+	}
+
+	JANUS_LOG(LOG_INFO, "janus_whiteboard_add_scene22222: %s, %d, %d\n", resource, page_count, type);
+	result.ret = janus_whiteboard_add_scenes(whiteboard, package.newscene);
+	if (result.ret <= 0) {
+		janus_mutex_unlock_nodebug(&whiteboard->mutex);
+		g_free(package.newscene);
+		JANUS_LOG(LOG_WARN, "Error add scene.\n");
+		return result;
+	}
+	JANUS_LOG(LOG_INFO, "whiteboard:newscene: %s, %d, %d\n", package.newscene->resource, package.newscene->pagecount, package.newscene->index);
+	result.ret = package.newscene->index;
+	result.command_len = pb__package__get_packed_size(&package);
+	result.command_buf = g_malloc0(result.command_len);
+	pb__package__pack(&package, result.command_buf);
+	result.package_type = KLPackageType_AddScene;
+
+	g_free(package.newscene);
+	janus_mutex_unlock_nodebug(&whiteboard->mutex);
+	return result;
+} 
+
 /*! */
 int janus_whiteboard_scenes_data(janus_whiteboard * whiteboard, Pb__Scene **scenes) {
 	janus_scene **j_scenes = whiteboard->scenes;

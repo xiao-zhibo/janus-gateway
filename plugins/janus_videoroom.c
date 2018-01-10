@@ -363,6 +363,13 @@ static struct janus_json_parameter listener_parameters[] = {
 	{"offer_video", JANUS_JSON_BOOL, 0},
 	{"offer_data", JANUS_JSON_BOOL, 0}
 };
+static struct janus_json_parameter whiteboard_parameters[] = {
+	{"room", JSON_INTEGER, JANUS_JSON_PARAM_REQUIRED | JANUS_JSON_PARAM_POSITIVE},
+	{"cmd_type", JSON_INTEGER, 0},
+	{"resource", JSON_STRING, 0},
+	{"page_count", JSON_INTEGER, 0},
+	{"scene_type", JSON_INTEGER, 0}
+};
 
 /* Static configuration instance */
 static janus_config *config = NULL;
@@ -613,6 +620,7 @@ typedef struct janus_xiao_data_packet {
 	unsigned char msg_type;
 	guint64 total_size;
 	char  *xiao_data_packet_buf;
+	guint64 xiao_data_packet_received;
 } janus_xiao_data_packet;
 
 typedef struct janus_videoroom_participant {
@@ -673,6 +681,7 @@ static guint32 janus_videoroom_rtp_forwarder_add_helper(janus_videoroom_particip
 	const gchar* host, int port, int pt, uint32_t ssrc, int substream, gboolean is_video, gboolean is_data);
 
 static void janus_videoroom_relay_participant_packet(janus_videoroom_participant *participant, char *buf, janus_xiao_data_packet_header *header);
+static void janus_videoroom_relay_participant_packet2(janus_videoroom_participant *participant, janus_xiao_data_packet *xiao_packet);
 
 typedef struct janus_videoroom_listener {
 	janus_videoroom_session *session;
@@ -745,6 +754,7 @@ typedef struct janus_videoroom_data_packet {
 
 
 static int janus_videoroom_wrap_datachannel_data_packet(janus_videoroom_participant *participant, char *buf, int len);
+static int janus_videoroom_wrap_packet(janus_xiao_data_packet *xiao_packet, char *buf, int len);
 
 static guint32 janus_videoroom_rtp_forwarder_add_helper(janus_videoroom_participant *p,
 		const gchar* host, int port, int pt, uint32_t ssrc, int substream, gboolean is_video, gboolean is_data) {
@@ -2768,7 +2778,8 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 		json_t *json_content = json_object_get(root, "content");
 		char *content = g_strdup(json_string_value(json_content));
 		guint64 len = strlen(content);
-		JANUS_LOG(LOG_INFO, "room: (%"SCNu64")\ncontent: %s\n", room_id, content);
+		JANUS_LOG(LOG_INFO, "len: (%"SCNu64"), o:%d, a:%d, s:%d, i:%d\n", len, JSON_OBJECT, JSON_ARRAY, JSON_STRING, JSON_INTEGER);
+		JANUS_LOG(LOG_INFO, "room: (%"SCNu64")\ncontent(%d,%d): %s\n", room_id, json_typeof(json_content), json_array_size(json_content), content);
 
 		janus_mutex_lock(&rooms_mutex);
 		janus_videoroom *videoroom = g_hash_table_lookup(rooms, &room_id);
@@ -2786,20 +2797,15 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 			JANUS_VIDEOROOM_ERROR_MISSING_ELEMENT, JANUS_VIDEOROOM_ERROR_INVALID_ELEMENT, JANUS_VIDEOROOM_ERROR_UNAUTHORIZED);
 		if(error_code != 0) {
 			janus_mutex_unlock(&videoroom->participants_mutex);
-			JANUS_LOG(LOG_ERR, "parameter secret error: %s\n", videoroom->secret);
+			JANUS_LOG(LOG_ERR, "parameter secret error: %s\n", videoroom->room_secret);
 			goto plugin_response; 
 		}
-		typedef struct janus_xiao_data_packet {
-			unsigned char version;
-			unsigned char msg_type;
-			guint64 total_size;
-			char  *xiao_data_packet_buf;
-		} janus_xiao_data_packet;
+		
 		/* Relay to all participant */
 		janus_xiao_data_packet *xiao_packet = g_malloc0(sizeof(janus_xiao_data_packet));
-		if (janus_videoroom_wrap__packet(xiao_packet, char *buf, int len) < 0) {
+		if (janus_videoroom_wrap_packet(xiao_packet, content, len) < 0) {
 			janus_mutex_unlock(&videoroom->participants_mutex);
-			ANUS_LOG(LOG_ERR, "decode the message error.");
+			JANUS_LOG(LOG_ERR, "decode the message error.");
 			goto plugin_response; 
 		}
 		JANUS_LOG(LOG_INFO, "Got a DataChannel message (%d bytes) to forward, type: %d\n", xiao_packet->total_size, xiao_packet->msg_type);
@@ -2815,12 +2821,10 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 					JANUS_LOG(LOG_INFO, "DataChannel Return added scene command to participant: %d, %d\n", wret.command_len, wret.command_buf);
 
 					if (xiao_packet->xiao_data_packet_buf) {
-						g_free(xiao_data_packet_buf);
+						g_free(xiao_packet->xiao_data_packet_buf);
 					}
 					xiao_packet->xiao_data_packet_buf = wret.command_buf;
 					xiao_packet->total_size = wret.command_len;
-					
-					janus_videoroom *videoroom = participant->room;
 
 					GHashTableIter iter;
 					gpointer value;
@@ -2852,6 +2856,88 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 		
 		/* Prepare response */
 		response = json_object();
+		json_object_set_new(response, "videoroom", json_string("success"));
+		/* Done */
+		goto plugin_response;
+	} else if(!strcasecmp(request_text, "whiteboard")) {
+		/* publish a message to an existing videoroom */
+		JANUS_LOG(LOG_VERB, "Attempt to publish a whiteboard message to an existing videoroom\n");
+		// JANUS_VALIDATE_JSON_OBJECT(root, whiteboard_parameters,
+		// 	error_code, error_cause, TRUE,
+		// 	JANUS_VIDEOROOM_ERROR_MISSING_ELEMENT, JANUS_VIDEOROOM_ERROR_INVALID_ELEMENT);
+		// if(error_code != 0)
+		// 	goto plugin_response;
+
+		json_t *room = json_object_get(root, "room");
+		guint64 room_id = json_integer_value(room);
+		json_t * json_cmd_type = json_object_get(root, "cmd_type");
+		int cmd_type = json_integer_value(json_cmd_type);
+		response = json_object();
+		JANUS_LOG(LOG_VERB, "Attempt to publish a message to an existing videoroom222\n");
+		if (cmd_type == KLPackageType_AddScene) {
+			json_t *json_resource = json_object_get(root, "resource");
+			char *resource = g_strdup(json_string_value(json_resource));
+			json_t *json_page_count = json_object_get(root, "page_count");
+			int page_count = json_integer_value(json_page_count);
+			json_t *json_scene_type = json_object_get(root, "scene_type");
+			int scene_type = json_integer_value(json_scene_type);
+
+			janus_mutex_lock(&rooms_mutex);
+			janus_videoroom *videoroom = g_hash_table_lookup(rooms, &room_id);
+			if(videoroom == NULL) {
+				janus_mutex_unlock(&rooms_mutex);
+				JANUS_LOG(LOG_ERR, "No such room (%"SCNu64")\n", room_id);
+				error_code = JANUS_VIDEOROOM_ERROR_NO_SUCH_ROOM;
+				g_snprintf(error_cause, 512, "No such room (%"SCNu64")", room_id);
+				json_object_set_new(response, "videoroom", json_string("fail"));
+				goto plugin_response;
+			}
+			janus_mutex_lock(&videoroom->participants_mutex);
+			janus_mutex_unlock(&rooms_mutex);
+			/* A secret may be required for this action */
+			// JANUS_CHECK_SECRET(videoroom->room_secret, root, "secret", error_code, error_cause,
+			// 	JANUS_VIDEOROOM_ERROR_MISSING_ELEMENT, JANUS_VIDEOROOM_ERROR_INVALID_ELEMENT, JANUS_VIDEOROOM_ERROR_UNAUTHORIZED);
+			// if(error_code != 0) {
+			// 	janus_mutex_unlock(&videoroom->participants_mutex);
+			// 	JANUS_LOG(LOG_ERR, "parameter secret error: %s\n", videoroom->room_secret);
+			// 	json_object_set_new(response, "videoroom", json_string("fail"));
+			// 	goto plugin_response; 
+			// }
+
+		   /*@returns wret 为白板数据请求封装。前段有部分特殊指令需要返回关键帧或普通的指令帧 */
+			janus_whiteboard_result wret = janus_whiteboard_add_scene(videoroom->whiteboard, resource, page_count, scene_type);
+
+			JANUS_LOG(LOG_INFO, "Got a DataChannel message (%d bytes) to forward, result: %d,%d\n", wret.keyframe_len+wret.command_len, wret.ret, wret.package_type);
+			
+			/* ret 大于0时表示发起者发出了指令，将有数据需要返回. */
+			if (wret.ret <= 0 || wret.command_len <= 0) {
+				janus_mutex_unlock(&videoroom->participants_mutex);
+				JANUS_LOG(LOG_ERR, "add scene error: %d, %s\n", page_count, resource);
+				json_object_set_new(response, "videoroom", json_string("fail"));
+				goto plugin_response; 
+			}
+			JANUS_LOG(LOG_INFO, "DataChannel Return added scene command to participant: %d, %d\n", wret.command_len, wret.command_buf);
+
+			janus_xiao_data_packet xiao_packet;
+			xiao_packet.version = JANUS_DATA_PKT_VERSION;
+			xiao_packet.msg_type = MESSAGE_TYPE_WHITEBOARD;
+			xiao_packet.xiao_data_packet_buf = wret.command_buf;
+			xiao_packet.total_size = wret.command_len;
+
+			GHashTableIter iter;
+			gpointer value;
+			g_hash_table_iter_init(&iter, videoroom->participants);
+			while (!videoroom->destroyed && g_hash_table_iter_next(&iter, NULL, &value)) {
+				janus_videoroom_participant *p = value;
+				janus_videoroom_relay_participant_packet2(p, &xiao_packet);
+			}
+			janus_mutex_unlock(&videoroom->participants_mutex)
+			g_free(wret.command_buf);
+			wret.command_buf = NULL;
+			json_object_set_new(response, "index", json_integer(wret.ret));
+		}
+
+		/* Prepare response */
 		json_object_set_new(response, "videoroom", json_string("success"));
 		/* Done */
 		goto plugin_response;
@@ -5472,7 +5558,11 @@ static void janus_videoroom_relay_participant_packet2(janus_videoroom_participan
 }
 
 /*  */
-static int janus_videoroom_wrap__packet(janus_xiao_data_packet *xiao_packet, char *buf, int len) {
+static int janus_videoroom_wrap_packet(janus_xiao_data_packet *xiao_packet, char *buf, int len) {
+	if (xiao_packet == NULL) {
+		JANUS_LOG(LOG_INFO, "janus_videoroom_wrap_packet error: xiao_packet is NULL \n");
+		return -1;
+	}
 	unsigned char version = (unsigned char)buf[0];
 	unsigned char msg_type = (unsigned char)buf[1];
 	guint64 pkg_offset = 2;
@@ -5488,6 +5578,7 @@ static int janus_videoroom_wrap__packet(janus_xiao_data_packet *xiao_packet, cha
 	memcpy((void*)&pkt_index,  (const void*)(buf + pkg_offset), sizeof(pkt_index));
 	pkg_offset += sizeof(pkt_index);
 	JANUS_LOG(LOG_INFO, "version:%d, type:%d, total_size:%zu, chunked:%d, pkt_index:%d\n", version, msg_type, total_size, chunked, pkt_index);
+
 	if (chunked > 1) {
 		JANUS_LOG(LOG_WARN, "Unknown whiteboard packets\n");
 		return -1;
@@ -5528,12 +5619,9 @@ static int janus_videoroom_wrap__packet(janus_xiao_data_packet *xiao_packet, cha
 		memcpy(xiao_packet->xiao_data_packet_buf, (const void*)(buf + pkg_offset), total_size);
 		xiao_packet->xiao_data_packet_received = total_size;
 	}
-	if (xiao_packet->xiao_data_packet_header == NULL) {
-		xiao_packet->xiao_data_packet_header = g_malloc0(sizeof(janus_xiao_data_packet_header));
-	}
-	xiao_packet->xiao_data_packet_header->msg_type = msg_type;
-	xiao_packet->xiao_data_packet_header->version = version;
-	xiao_packet->xiao_data_packet_header->total_size = total_size;
+	xiao_packet->msg_type = msg_type;
+	xiao_packet->version = version;
+	xiao_packet->total_size = total_size;
 	return 1;
 }
 
