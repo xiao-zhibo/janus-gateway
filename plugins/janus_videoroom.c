@@ -2910,7 +2910,7 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 			JANUS_LOG(LOG_INFO, "Got a DataChannel message (%d bytes) to forward, result: %d,%d\n", wret.keyframe_len+wret.command_len, wret.ret, wret.package_type);
 			
 			/* ret 大于0时表示发起者发出了指令，将有数据需要返回. */
-			if (wret.ret <= 0 || wret.command_len <= 0) {
+			if (wret.ret < 0 || wret.command_len <= 0) {
 				janus_mutex_unlock(&videoroom->participants_mutex);
 				JANUS_LOG(LOG_ERR, "add scene error: %d, %s\n", page_count, resource);
 				json_object_set_new(response, "videoroom", json_string("fail"));
