@@ -38,6 +38,7 @@ int      janus_whiteboard_scene_page_data_l(janus_whiteboard *whiteboard, int sc
 int      janus_whiteboard_on_receive_keyframe_l(janus_whiteboard *whiteboard, Pb__Package *package);
 int      janus_whiteboard_on_receive_switch_scene_l(janus_whiteboard *whiteboard, Pb__Package *package);
 int      janus_whiteboard_generate_and_save_l(janus_whiteboard *whiteboard);
+int 	 janus_whiteboard_add_scene_l(janus_whiteboard *whiteboard, Pb__Scene *newScene);
 
 int64_t janus_whiteboard_get_current_time_l(void) {
 	struct timeval tv;
@@ -375,14 +376,17 @@ janus_whiteboard *janus_whiteboard_create(const char *dir, const char *filename,
 }
 
 /*! */
-int janus_whiteboard_add_scenes(janus_whiteboard *whiteboard, Pb__Scene *newScene) {
+int janus_whiteboard_add_scene_l(janus_whiteboard *whiteboard, Pb__Scene *newScene) {
 	janus_scene *j_scene = g_malloc0(sizeof(janus_scene));
 	j_scene->type       = newScene->type; 
 	j_scene->source_url = g_strdup(newScene->resource);
 	j_scene->page_num = newScene->pagecount;
 	j_scene->page_keyframes = g_malloc0(sizeof(Pb__KeyFrame*) * j_scene->page_num);
 	j_scene->page_keyframe_maxnum = 0;
-	newScene->index = whiteboard->scene_num;
+	if (newScene->index == -1) {
+		newScene->index = whiteboard->scene_num;
+	}
+	whiteboard->scene_num = newScene->index;
 	whiteboard->scenes[whiteboard->scene_num ++] = j_scene;
 
 	/*! 将 keyframe 保存到文件 */
@@ -407,7 +411,7 @@ int janus_whiteboard_add_scenes(janus_whiteboard *whiteboard, Pb__Scene *newScen
 	return 1;
 }
 
-janus_whiteboard_result janus_whiteboard_add_scene(janus_whiteboard *whiteboard, char *resource, int page_count, int type) {
+janus_whiteboard_result janus_whiteboard_add_scene(janus_whiteboard *whiteboard, char *resource, int page_count, int type, int index) {
 	JANUS_LOG(LOG_INFO, "janus_whiteboard_add_scene: %s, %d, %d\n", resource, page_count, type);
 	janus_whiteboard_result result = 
 	{
@@ -446,7 +450,7 @@ janus_whiteboard_result janus_whiteboard_add_scene(janus_whiteboard *whiteboard,
 	package.newscene->type = type;
 	package.newscene->resource = g_strdup(resource);
 	package.newscene->pagecount = page_count;
-	package.newscene->index = -1;
+	package.newscene->index = index;
 
 	JANUS_LOG(LOG_INFO, "4444444444444444444\n");
 	janus_mutex_lock_nodebug(&whiteboard->mutex);
@@ -458,7 +462,7 @@ janus_whiteboard_result janus_whiteboard_add_scene(janus_whiteboard *whiteboard,
 	}
 
 	JANUS_LOG(LOG_INFO, "janus_whiteboard_add_scene22222: %s, %d, %d\n", resource, page_count, type);
-	result.ret = janus_whiteboard_add_scenes(whiteboard, package.newscene);
+	result.ret = janus_whiteboard_add_scene_l(whiteboard, package.newscene);
 	if (result.ret <= 0) {
 		janus_mutex_unlock_nodebug(&whiteboard->mutex);
 		g_free(package.newscene);
@@ -484,9 +488,11 @@ int janus_whiteboard_scenes_data(janus_whiteboard * whiteboard, Pb__Scene **scen
 		scenes[i] = g_malloc0(sizeof(Pb__Scene));
 		pb__scene__init(scenes[i]);
 		scenes[i]->index = i;
-		scenes[i]->type = j_scenes[i]->type;
-		scenes[i]->resource = g_strdup(j_scenes[i]->source_url);
-		scenes[i]->pagecount = j_scenes[i]->page_num;
+		if (j_scenes[i] != NULL) {
+			scenes[i]->type = j_scenes[i]->type;
+			scenes[i]->resource = g_strdup(j_scenes[i]->source_url);
+			scenes[i]->pagecount = j_scenes[i]->page_num;
+		}
 	}
 	return whiteboard->scene_num;
 }
@@ -764,7 +770,7 @@ janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboa
 	JANUS_LOG(LOG_INFO, "whiteboard: package——type：%d\n", package->type);
 	if (package->type == KLPackageType_AddScene) {
 		// add whiteboard scene
-		result.ret = janus_whiteboard_add_scenes(whiteboard, package->newscene);
+		result.ret = janus_whiteboard_add_scene_l(whiteboard, package->newscene);
 		JANUS_LOG(LOG_INFO, "whiteboard:newscene: %s, %d, %d\n", package->newscene->resource, package->newscene->pagecount, package->newscene->index);
 		result.command_len = pb__package__get_packed_size(package);
 		result.command_buf = g_malloc0(result.command_len);
