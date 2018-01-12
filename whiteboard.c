@@ -587,25 +587,31 @@ int janus_whiteboard_scene_page_data_l(janus_whiteboard *whiteboard, int scene, 
 		JANUS_LOG(LOG_WARN, "\"scene_page_data_l\" got a request with invalid index(%d) or page(%d), set to default 0.\n", scene, page);
 	}
 	if (scene < 0) {
-		scene = 0;
+		scene = whiteboard->scene;
 	}
-	if (page < 0) {
-		page  = 0;
+	if (scene >= whiteboard->scene_num) {
+		JANUS_LOG(LOG_ERR, "\"scene_page_data_l\" got a request with invalid scene(%d).", scene)
+		return -1;
 	}
 	int package_data_offset = 0;
 	janus_scene *scene_data = NULL;
-	if (scene < whiteboard->scene_num) {
-		scene_data = whiteboard->scenes[scene];
+	scene_data = whiteboard->scenes[scene];
+	if (scene_data == NULL) {
+		JANUS_LOG(LOG_ERR, "\"scene_page_data_l\" no scene(%d) data.", scene)
+		return -1;
+	}
+	if (page < 0) {
+		page  = scene_data->page_num;
+	}
+	if (page >= scene_data->page_num) {
+		JANUS_LOG(LOG_ERR, "\"scene_page_data_l\" got a request with invalid page(%d).", page)
+		return -1;
 	}
 
-	if (scene_data != NULL && page < scene_data->page_num) {
-		Pb__KeyFrame *target_keyframe = scene_data->page_keyframes[page];
-		if (target_keyframe != NULL) {
-			package_data_offset = target_keyframe->offset;
-			JANUS_LOG(LOG_VERB, "Get scene data offset %d\n", package_data_offset);
-		}
-	} else {
-		return -1;
+	Pb__KeyFrame *target_keyframe = scene_data->page_keyframes[page];
+	if (target_keyframe != NULL) {
+		package_data_offset = target_keyframe->offset;
+		JANUS_LOG(LOG_VERB, "Get scene data offset %d\n", package_data_offset);
 	}
 	// seek 到文件开头。FIXME:Rison 使用数组存起来 scene--->offset, 就不需要每次从头开始读取了
 	fseek(whiteboard->file, package_data_offset, SEEK_SET);
@@ -700,8 +706,9 @@ int janus_whiteboard_on_receive_keyframe_l(janus_whiteboard *whiteboard, Pb__Pac
 int janus_whiteboard_on_receive_switch_scene_l(janus_whiteboard *whiteboard, Pb__Package *package) {
 	if (!whiteboard->scene_file || !package)
 		return -1;
-	if (package->scene < 0 || package->scene >= MAX_PACKET_CAPACITY) {
+	if (package->scene < 0 || package->scene >= whiteboard->scene_num) {
 		JANUS_LOG(LOG_WARN, "Out of index on saving switch scene package, it's is %d\n", package->scene);
+		return -1;
 	}
 
 	Pb__PageIndex nextPage;
@@ -824,23 +831,24 @@ janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboa
 		return result;
 	} else if (package->type == KLPackageType_SwitchScenePage) {
 	    // 切换白板场景
+	    int ret;
 		if (package->scene == whiteboard->scene && package->page == whiteboard->page) {
 			JANUS_LOG(LOG_WARN, "Get a request to switch scene page, but currenttly the whiteboard is on the target %d scene %d page\n", package->scene, package->page);
 		    janus_mutex_unlock_nodebug(&whiteboard->mutex);
 		    result.ret = 0;
 		    pb__package__free_unpacked(package, NULL);
 			return result;
-		} else if (package->scene < 0 || package->page < 0) {
+		} else if (package->scene < 0 || package->page < 0 || package->scene >= whiteboard->scene_num || package->page >= whiteboard->scenes[package->scene]->page_num) {
 			JANUS_LOG(LOG_WARN, "Got a request to switch scene page, but its scene(%d) or page(%d) index is invalid.\n", package->scene, package->page);
-		    result.ret = 0;
+		    result.ret = -1;
 		    pb__package__free_unpacked(package, NULL);
 			janus_mutex_unlock_nodebug(&whiteboard->mutex);
 			return result;
 		}
-		janus_whiteboard_on_receive_switch_scene_l(whiteboard, package);
+		ret = janus_whiteboard_on_receive_switch_scene_l(whiteboard, package);
+		janus_whiteboard_remove_packets_l(whiteboard->scene_page_packages, 0, whiteboard->scene_page_package_num);
 		whiteboard->scene = package->scene;
 		whiteboard->page = package->page;
-		janus_whiteboard_remove_packets_l(whiteboard->scene_page_packages, 0, whiteboard->scene_page_package_num);
 		whiteboard->scene_page_package_num = janus_whiteboard_scene_page_data_l(whiteboard, whiteboard->scene, whiteboard->page, whiteboard->scene_page_packages);
 		if (whiteboard->scene_page_package_num < 0) {
 			JANUS_LOG(LOG_WARN, "Something wrong happens when fetching scene data with reselt %d\n", whiteboard->scene_page_package_num);
