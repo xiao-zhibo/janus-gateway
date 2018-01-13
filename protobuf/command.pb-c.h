@@ -98,10 +98,11 @@ struct  _Pb__Package
   Pb__Scene *newscene;
   size_t n_scenes;
   Pb__Scene **scenes;
+  char *extension;
 };
 #define PB__PACKAGE__INIT \
  { PROTOBUF_C_MESSAGE_INIT (&pb__package__descriptor) \
-    , 0, 0, 0, 0, 0,NULL, 0,NULL, NULL, 0,NULL }
+    , 0, 0, 0, 0, 0,NULL, 0,NULL, NULL, 0,NULL, (char *)protobuf_c_empty_string }
 
 
 struct  _Pb__KeyFrame
