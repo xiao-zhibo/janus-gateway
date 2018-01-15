@@ -13,6 +13,13 @@ static janus_io janus_oss_io =
 		.read_data_range = janus_io_read_data_range,
 	);
 
+typedef struct janus_oss {
+	aos_pool_t *p = NULL;
+	oss_config_t *config;
+	aos_string_t bucket;
+	aos_string_t object;
+} janus_oss;
+
 /* Transport creator */
 janus_transport *create(void) {
 	JANUS_LOG(LOG_VERB, "%s created!\n", JANUS_REST_NAME);
