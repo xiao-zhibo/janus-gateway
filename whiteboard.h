@@ -28,6 +28,8 @@ typedef enum {
     KLPackageType_KeyFrame,
     KLPackageType_AddScene,
     KLPackageType_SceneData,
+    KLPackageType_ScalePage,
+    KLPackageType_EnableUserDraw,
 } KLDataPackageType;
 
 #define MAX_PACKET_CAPACITY 100000

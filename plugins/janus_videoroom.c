@@ -3027,6 +3027,9 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 				wret.command_buf = NULL;
 				json_object_set_new(response, "index", json_integer(wret.ret));
 			}
+		}  else if (cmd_type == KLPackageType_EnableUserDraw) {
+			json_t *enable_json = json_object_get(root, "enable");
+			
 		}
 
 		/* Prepare response */
