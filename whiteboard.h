@@ -28,7 +28,6 @@ typedef enum {
     KLPackageType_KeyFrame,
     KLPackageType_AddScene,
     KLPackageType_SceneData,
-    KLPackageType_ScalePage,
     KLPackageType_EnableUserDraw,
 } KLDataPackageType;
 
@@ -112,6 +111,8 @@ janus_whiteboard *janus_whiteboard_create(const char *dir, const char *filename,
 janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboard, char *buffer, size_t length);
 
 janus_whiteboard_result janus_whiteboard_add_scene(janus_whiteboard *whiteboard, char *resource, int page_count, int type, int index);
+
+janus_whiteboard_result janus_whiteboard_packet_extension(janus_whiteboard *whiteboard, int package_type, char *extension);
 
 /*! \brief Close the whiteboard
  * @param[in] whiteboard The janus_whiteboard instance to close
