@@ -2841,8 +2841,8 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 		janus_xiao_data_packet xiao_packet;
 		xiao_packet.version = JANUS_DATA_PKT_VERSION;
 		xiao_packet.msg_type = MESSAGE_TYPE_SYSTEM;
-		xiao_packet.xiao_data_packet_buf = wret.command_buf;
-		xiao_packet.total_size = wret.command_len;
+		xiao_packet.xiao_data_packet_buf = content;
+		xiao_packet.total_size = len;
 		
 		/* Relay to all participant */
 		JANUS_LOG(LOG_INFO, "Got a other DataChannel message (%d bytes) to forward\n", len);
@@ -2855,8 +2855,7 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 		}
 
 		janus_mutex_unlock(&videoroom->participants_mutex);
-		g_free(wret.command_buf);
-		wret.command_buf = NULL;
+		g_free(content);
 		
 		/* Prepare response */
 		response = json_object();
