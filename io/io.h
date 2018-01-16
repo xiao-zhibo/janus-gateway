@@ -53,9 +53,7 @@ typedef struct janus_io janus_io;
 
 
 struct janus_io_info {
-	/*! \brief Opaque pointer to the gateway session */
-	void *io_handle;
-	/*! \brief Opaque pointer to the plugin session */
+	/*! \brief Opaque pointer to the io */
 	void *io_handle;
 	
 	char *path;
