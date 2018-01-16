@@ -3036,7 +3036,7 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 			}
 		}  else if (cmd_type == KLPackageType_EnableUserDraw) {
 			json_t *extension_json = json_object_get(root, "extension");
-			char *extension = json_string_value(extension);
+			char *extension = json_string_value(extension_json);
 
 			janus_mutex_lock(&rooms_mutex);
 			janus_videoroom *videoroom = g_hash_table_lookup(rooms, &room_id);
