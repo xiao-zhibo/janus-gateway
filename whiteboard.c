@@ -1205,3 +1205,46 @@ int janus_whiteboard_free(janus_whiteboard *whiteboard) {
 	g_free(whiteboard);
 	return 0;
 }
+
+janus_whiteboard_result janus_whiteboard_packet_extension(janus_whiteboard *whiteboard, int package_type, char *extension) {
+	janus_whiteboard_result result = 
+	{
+		.ret          = -1, /* 大于0时表示发起者发出了指令，将有数据需要返回. */
+		.keyframe_len = 0,
+		.keyframe_buf = NULL,
+		.command_len  = 0,
+		.command_buf  = NULL,
+		.package_type = KLPackageType_None,
+	};
+
+	if(!whiteboard) {
+		JANUS_LOG(LOG_ERR, "Error saving frame. Whiteboard is empty\n");
+		return result;
+	}
+
+	Pb__Package package;
+	pb__package__init(&package);
+	package.type = package_type;
+	JANUS_LOG(LOG_INFO, "11111111111111111111\n");
+	package.timestamp = janus_whiteboard_get_current_time_l() - whiteboard->start_timestamp;
+	package.extension = g_strdup(extension);
+ 
+	JANUS_LOG(LOG_INFO, "janus_whiteboard_packet_extension: %d, %s\n", package_type, extension);
+
+	janus_mutex_lock_nodebug(&whiteboard->mutex);
+	if(!whiteboard->file) {
+		janus_mutex_unlock_nodebug(&whiteboard->mutex);
+		JANUS_LOG(LOG_WARN, "Error saving frame. whiteboard->file is empty\n");
+		return result;
+	}
+	package.scene = whiteboard->scene;
+	package.page = whiteboard->page;
+
+	result.ret = 0;
+	result.command_len = pb__package__get_packed_size(&package);
+	result.command_buf = g_malloc0(result.command_len);
+	pb__package__pack(&package, result.command_buf);
+
+	janus_mutex_unlock_nodebug(&whiteboard->mutex);
+	return result;
+}

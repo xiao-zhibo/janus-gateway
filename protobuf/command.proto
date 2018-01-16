@@ -39,6 +39,7 @@ message Package {
     repeated Line lines = 6;
     Scene newScene = 7;
     repeated Scene scenes = 8;
+    string extension = 9;
 }
 
 message KeyFrame {

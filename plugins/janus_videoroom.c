@@ -373,7 +373,8 @@ static struct janus_json_parameter whiteboard_parameters[] = {
 static struct janus_json_parameter whiteboards_parameters[] = {
 	{"room", JSON_INTEGER, JANUS_JSON_PARAM_REQUIRED | JANUS_JSON_PARAM_POSITIVE},
 	{"cmd_type", JSON_INTEGER, 0},
-	{"scenes", JSON_ARRAY, 0}
+	{"scenes", JSON_ARRAY, 0},
+	{"extension", JSON_STRING, 0}
 };
 static struct janus_json_parameter scene_parameters[] = {
 	{"resource", JSON_STRING, 0},
@@ -2837,6 +2838,11 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 			JANUS_LOG(LOG_ERR, "parameter secret error: %s\n", videoroom->room_secret);
 			goto plugin_response; 
 		}
+		janus_xiao_data_packet xiao_packet;
+		xiao_packet.version = JANUS_DATA_PKT_VERSION;
+		xiao_packet.msg_type = MESSAGE_TYPE_SYSTEM;
+		xiao_packet.xiao_data_packet_buf = content;
+		xiao_packet.total_size = len;
 		
 		/* Relay to all participant */
 		JANUS_LOG(LOG_INFO, "Got a other DataChannel message (%d bytes) to forward\n", len);
@@ -2845,10 +2851,11 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 		g_hash_table_iter_init(&iter, videoroom->participants);
 		while (!videoroom->destroyed && g_hash_table_iter_next(&iter, NULL, &value)) {
 			janus_videoroom_participant *p = value;
-			janus_videoroom_relay_participant_packet(p, content, len);
+			janus_videoroom_relay_participant_packet2(p, &xiao_packet);
 		}
 
 		janus_mutex_unlock(&videoroom->participants_mutex);
+		g_free(content);
 		
 		/* Prepare response */
 		response = json_object();
@@ -2939,7 +2946,7 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 		goto plugin_response;
 	} else if(!strcasecmp(request_text, "whiteboards")) {
 		/* publish a message to an existing videoroom */
-		JANUS_LOG(LOG_VERB, "Attempt to publish a whiteboard message to an existing videoroom\n");
+		JANUS_LOG(LOG_VERB, "Attempt to publish a whiteboards message to an existing videoroom\n");
 		JANUS_VALIDATE_JSON_OBJECT(root, whiteboards_parameters,
 			error_code, error_cause, TRUE,
 			JANUS_VIDEOROOM_ERROR_MISSING_ELEMENT, JANUS_VIDEOROOM_ERROR_INVALID_ELEMENT);
@@ -2951,7 +2958,8 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 		json_t * json_cmd_type = json_object_get(root, "cmd_type");
 		int cmd_type = json_integer_value(json_cmd_type);
 		response = json_object();
-		JANUS_LOG(LOG_VERB, "Attempt to publish a message to an existing videoroom222\n");
+		JANUS_LOG(LOG_INFO, "Got a whiteboards message: %d\n", cmd_type);
+		
 		if (cmd_type == KLPackageType_AddScene) {
 			json_t *scenes = json_object_get(root, "scenes");
 			int scene_num = json_array_size(scenes);
@@ -3027,6 +3035,62 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 				wret.command_buf = NULL;
 				json_object_set_new(response, "index", json_integer(wret.ret));
 			}
+		}  else if (cmd_type == KLPackageType_EnableUserDraw) {
+			json_t *extension_json = json_object_get(root, "extension");
+			char *extension = json_string_value(extension_json);
+
+			janus_mutex_lock(&rooms_mutex);
+			janus_videoroom *videoroom = g_hash_table_lookup(rooms, &room_id);
+			if(videoroom == NULL) {
+				janus_mutex_unlock(&rooms_mutex);
+				JANUS_LOG(LOG_ERR, "No such room (%"SCNu64")\n", room_id);
+				error_code = JANUS_VIDEOROOM_ERROR_NO_SUCH_ROOM;
+				g_snprintf(error_cause, 512, "No such room (%"SCNu64")", room_id);
+				json_object_set_new(response, "videoroom", json_string("fail"));
+				goto plugin_response;
+			}
+			janus_mutex_lock(&videoroom->participants_mutex);
+			janus_mutex_unlock(&rooms_mutex);
+			/* A secret may be required for this action */
+			JANUS_CHECK_SECRET(videoroom->room_secret, root, "secret", error_code, error_cause,
+				JANUS_VIDEOROOM_ERROR_MISSING_ELEMENT, JANUS_VIDEOROOM_ERROR_INVALID_ELEMENT, JANUS_VIDEOROOM_ERROR_UNAUTHORIZED);
+			if(error_code != 0) {
+				janus_mutex_unlock(&videoroom->participants_mutex);
+				JANUS_LOG(LOG_ERR, "parameter secret error: %s\n", videoroom->room_secret);
+				json_object_set_new(response, "videoroom", json_string("fail"));
+				goto plugin_response; 
+			}
+			JANUS_LOG(LOG_INFO, "Got a extension message: %d,%s\n", strlen(extension), extension);
+			janus_whiteboard_result wret = janus_whiteboard_packet_extension(videoroom->whiteboard, cmd_type, extension);
+
+			JANUS_LOG(LOG_INFO, "Got a extension message (%d bytes) to forward, result: %d,%d\n", wret.command_len, wret.ret, wret.package_type);
+			
+			/* ret 大于0时表示发起者发出了指令，将有数据需要返回. */
+			if (wret.ret < 0 || wret.command_len <= 0) {
+				janus_mutex_unlock(&videoroom->participants_mutex);
+				JANUS_LOG(LOG_ERR, "package extension message error: %s\n", extension);
+				json_object_set_new(response, "videoroom", json_string("fail"));
+				goto plugin_response; 
+			}
+			JANUS_LOG(LOG_INFO, "DataChannel Return extension message command to participant: %d, %d\n", wret.command_len, wret.command_buf);
+
+			janus_xiao_data_packet xiao_packet;
+			xiao_packet.version = JANUS_DATA_PKT_VERSION;
+			xiao_packet.msg_type = MESSAGE_TYPE_WHITEBOARD;
+			xiao_packet.xiao_data_packet_buf = wret.command_buf;
+			xiao_packet.total_size = wret.command_len;
+
+			GHashTableIter iter;
+			gpointer value;
+			g_hash_table_iter_init(&iter, videoroom->participants);
+			while (!videoroom->destroyed && g_hash_table_iter_next(&iter, NULL, &value)) {
+				janus_videoroom_participant *p = value;
+				janus_videoroom_relay_participant_packet2(p, &xiao_packet);
+			}
+			janus_mutex_unlock(&videoroom->participants_mutex)
+			g_free(wret.command_buf);
+			wret.command_buf = NULL;
+			json_object_set_new(response, "index", json_integer(wret.ret));
 		}
 
 		/* Prepare response */
