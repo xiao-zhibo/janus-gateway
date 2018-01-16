@@ -2946,7 +2946,7 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 		goto plugin_response;
 	} else if(!strcasecmp(request_text, "whiteboards")) {
 		/* publish a message to an existing videoroom */
-		JANUS_LOG(LOG_VERB, "Attempt to publish a whiteboard message to an existing videoroom\n");
+		JANUS_LOG(LOG_VERB, "Attempt to publish a whiteboards message to an existing videoroom\n");
 		JANUS_VALIDATE_JSON_OBJECT(root, whiteboards_parameters,
 			error_code, error_cause, TRUE,
 			JANUS_VIDEOROOM_ERROR_MISSING_ELEMENT, JANUS_VIDEOROOM_ERROR_INVALID_ELEMENT);
@@ -2958,6 +2958,7 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 		json_t * json_cmd_type = json_object_get(root, "cmd_type");
 		int cmd_type = json_integer_value(json_cmd_type);
 		response = json_object();
+		JANUS_LOG(LOG_INFO, "Got a whiteboards message: %d\n", cmd_type);
 		
 		if (cmd_type == KLPackageType_AddScene) {
 			json_t *scenes = json_object_get(root, "scenes");
@@ -3059,8 +3060,8 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 				json_object_set_new(response, "videoroom", json_string("fail"));
 				goto plugin_response; 
 			}
-
-			janus_whiteboard_result wret = janus_whiteboard_packet_extension(room_id, cmd_type, extension);
+			JANUS_LOG(LOG_INFO, "Got a extension message: %d,%s\n", strlen(extension), extension);
+			janus_whiteboard_result wret = janus_whiteboard_packet_extension(videoroom->whiteboard, cmd_type, extension);
 
 			JANUS_LOG(LOG_INFO, "Got a extension message (%d bytes) to forward, result: %d,%d\n", wret.command_len, wret.ret, wret.package_type);
 			
