@@ -9,7 +9,6 @@
 #include <unistd.h>
 #include <inttypes.h>
 
-#include <glib.h>
 #include <jansson.h>
 
 
@@ -30,21 +29,14 @@ static janus_transport janus_http_transport plugin =
 		[..]
 \endverbatim
  * */
-#define JANUS_TRANSPORT_INIT(...) {		\
+#define JANUS_IO_INIT(...) {		\
 		.init = NULL,					\
 		.destroy = NULL,				\
 		.get_api_compatibility = NULL,	\
-		.get_version = NULL,			\
-		.get_version_string = NULL,		\
-		.get_description = NULL,		\
-		.get_name = NULL,				\
-		.get_author = NULL,				\
-		.get_package = NULL,			\
-		.is_janus_api_enabled = NULL,	\
-		.is_admin_api_enabled = NULL,	\
-		.send_message = NULL,			\
-		.session_created = NULL,		\
-		.session_over = NULL,			\
+		.io_info_create = NULL,			\
+		.write_data = NULL,		\
+		.read_data = NULL,			\
+		.read_data_range = NULL,		\
 		## __VA_ARGS__ }
 
 
@@ -52,12 +44,12 @@ static janus_transport janus_http_transport plugin =
 typedef struct janus_io janus_io;
 
 
-struct janus_io_info {
+typedef struct janus_io_info {
 	/*! \brief Opaque pointer to the io */
 	void *io_handle;
 	
 	char *path;
-};
+} janus_io_info;
 
 /*! \brief The io plugin session and callbacks interface */
 struct janus_io {
@@ -79,6 +71,6 @@ struct janus_io {
 };
 
 /*! \brief The hook that transport plugins need to implement to be created from the gateway */
-typedef janus_io* create_t(void);
+typedef janus_io* create_i(void);
 
 #endif
