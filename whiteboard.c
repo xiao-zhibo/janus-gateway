@@ -50,10 +50,15 @@ int64_t janus_whiteboard_get_current_time_l(void) {
 
 char janus_whiteboard_package_check(janus_whiteboard *whiteboard, Pb__Package *package) {
 	if (package->scene < 0 || package->scene >= whiteboard->scene_num) {
+		JANUS_LOG(LOG_ERR, "\"janus_whiteboard_package_check\"  scene: %d, scene_num: %d.", package->scene, whiteboard->scene_num);
 		return 0;
 	}
 	janus_scene *scene_data = whiteboard->scenes[package->page];
 	if (package->page < 0 || scene_data == NULL || package->page >= scene_data->page_num) {
+		JANUS_LOG(LOG_ERR, "\"janus_whiteboard_package_check\"  scene: %d, page: %d.", package->scene, package->page);
+		if (scene_data != NULL) {
+			JANUS_LOG(LOG_ERR, "\"janus_whiteboard_package_check\" pange_num:%d.", scene_data->page_num);
+		}
 		return 0;
 	}
 	return 1;
@@ -596,13 +601,11 @@ int janus_whiteboard_scene_page_data_l(janus_whiteboard *whiteboard, int scene, 
 	if (whiteboard == NULL || whiteboard->file == NULL)
 		return -1;
 
-	if (scene < 0 || page < 0) {
-		JANUS_LOG(LOG_WARN, "\"scene_page_data_l\" got a request with invalid index(%d) or page(%d), set to default 0.\n", scene, page);
-	}
 	if (scene < 0) {
+		JANUS_LOG(LOG_WARN, "\"scene_page_data_l\" got a current scene data");
 		scene = whiteboard->scene;
 	}
-	if (scene >= whiteboard->scene_num) {
+	if (scene <0 || scene >= whiteboard->scene_num) {
 		JANUS_LOG(LOG_ERR, "\"scene_page_data_l\" got a request with invalid scene(%d).", scene);
 		return -1;
 	}
@@ -614,9 +617,9 @@ int janus_whiteboard_scene_page_data_l(janus_whiteboard *whiteboard, int scene, 
 		return -1;
 	}
 	if (page < 0) {
-		page  = scene_data->page_num;
+		page  = whiteboard->page;
 	}
-	if (page >= scene_data->page_num) {
+	if (page < 0 || page >= scene_data->page_num) {
 		JANUS_LOG(LOG_ERR, "\"scene_page_data_l\" got a request with invalid page(%d).", page);
 		return -1;
 	}
@@ -956,7 +959,7 @@ janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboa
 	}
 	
 	// 保存数据到当前场景（内存），以便快速处理KLPackageType_ScenePageData指令
-	if (package->scene == whiteboard->scene) {
+	if (package->scene == whiteboard->scene && package->page == whiteboard->page) {
 		janus_whiteboard_add_pkt_to_packages_l(whiteboard->scene_page_packages, &(whiteboard->scene_page_package_num), package);
 	} else {
 		pb__package__free_unpacked(package, NULL);
