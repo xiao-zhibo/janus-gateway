@@ -57,7 +57,7 @@ char janus_whiteboard_package_check(janus_whiteboard *whiteboard, Pb__Package *p
 	if (package->page < 0 || scene_data == NULL || package->page >= scene_data->page_num) {
 		JANUS_LOG(LOG_ERR, "\"janus_whiteboard_package_check\"  scene: %d, page: %d.", package->scene, package->page);
 		if (scene_data != NULL) {
-			JANUS_LOG(LOG_ERR, "\"janus_whiteboard_package_check\" pange_num:%d.", scene_data->page_num);
+			JANUS_LOG(LOG_ERR, "\"janus_whiteboard_package_check\" page_num:%d.", scene_data->page_num);
 		}
 		return 0;
 	}
@@ -488,6 +488,14 @@ janus_whiteboard_result janus_whiteboard_add_scene(janus_whiteboard *whiteboard,
 		return result;
 	}
 	JANUS_LOG(LOG_INFO, "whiteboard:newscene: %s, %d, %d\n", package.newscene->resource, package.newscene->pagecount, package.newscene->index);
+	for (int i = 0; i < whiteboard->scene_num; i ++) {
+		janus_scene *tmp_scene = whiteboard->scenes[i];
+		JANUS_LOG(LOG_INFO, "whiteboard:scene(%d)", i);
+		if (tmp_scene == NULL) {
+			JANUS_LOG(LOG_INFO, "whiteboard:scene(%d) not exists.", i);
+		}
+		JANUS_LOG(LOG_INFO, "whiteboard:scene(%d) page_num: %d", i, tmp_scene->page_num);
+	}
 	result.ret = package.newscene->index;
 	result.command_len = pb__package__get_packed_size(&package);
 	result.command_buf = g_malloc0(result.command_len);
@@ -846,6 +854,14 @@ janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboa
 		pb__package__free_unpacked(package, NULL);
 		return result;
 	} else if (package->type == KLPackageType_SwitchScenePage) {
+			for (int i = 0; i < whiteboard->scene_num; i ++) {
+				janus_scene *tmp_scene = whiteboard->scenes[i];
+				JANUS_LOG(LOG_INFO, "whiteboard:scene(%d)", i);
+				if (tmp_scene == NULL) {
+					JANUS_LOG(LOG_INFO, "whiteboard:scene(%d) not exists.", i);
+				}
+				JANUS_LOG(LOG_INFO, "whiteboard:scene(%d) page_num: %d", i, tmp_scene->page_num);
+			}
 	    // 切换白板场景
 		if (package->scene == whiteboard->scene && package->page == whiteboard->page) {
 			JANUS_LOG(LOG_WARN, "Get a request to switch scene page, but currenttly the whiteboard is on the target %d scene %d page\n", package->scene, package->page);
