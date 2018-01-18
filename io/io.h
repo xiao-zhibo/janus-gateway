@@ -34,6 +34,7 @@ static janus_transport janus_http_transport plugin =
 		.destroy = NULL,				\
 		.get_api_compatibility = NULL,	\
 		.io_info_create = NULL,			\
+		.io_info_close = NULL,			\
 		.write_data = NULL,		\
 		.read_data = NULL,			\
 		.read_data_range = NULL,		\
@@ -63,7 +64,9 @@ struct janus_io {
 
 	int (* const get_api_compatibility)(void);
 
-	int (* const io_info_create)(janus_io_info *info, const char *path);
+	int (* const io_info_create)(janus_io_info *info);
+	int (* const io_info_close) (janus_io_info *info);
+
 	int (* const write_data)(janus_io_info *io, char *buf, size_t len);
 	int (* const read_data)(janus_io_info *io, char *buf);
 	int (* const read_data_range)(janus_io_info *io, char *buf, size_t start, size_t end);
