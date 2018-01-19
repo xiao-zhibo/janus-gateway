@@ -3943,50 +3943,50 @@ static void *janus_videoroom_handler(void *data) {
 						goto error;
 					}
 				}
-				janus_videoroom_participant *participant = participantg_hash_table_find(videoroom->participants, is_same_participant, display_text);
-				if (participant && !participant->kicked) {
+				// janus_videoroom_participant *participant = participantg_hash_table_find(videoroom->participants, is_same_participant, display_text);
+				// if (participant && !participant->kicked) {
 
-					participant->kicked = TRUE;
-					participant->session->started = FALSE;
-					participant->audio_active = FALSE;
-					participant->video_active = FALSE;
-					participant->data_active = FALSE;
-					/* Prepare an event for this */
-					json_t *kicked = json_object();
-					json_object_set_new(kicked, "videoroom", json_string("event"));
-					json_object_set_new(kicked, "room", json_integer(participant->room->room_id));
-					json_object_set_new(kicked, "leaving", json_string("ok"));
-					json_object_set_new(kicked, "reason", json_string("kicked"));
-					int ret = gateway->push_event(participant->session->handle, &janus_videoroom_plugin, NULL, kicked, NULL);
-					JANUS_LOG(LOG_VERB, "  >> %d (%s)\n", ret, janus_get_api_error(ret));
-					json_decref(kicked);
-					janus_mutex_unlock(&videoroom->participants_mutex);
-					/* If this room requires valid private_id values, we can kick subscriptions too */
-					if(videoroom->require_pvtid && participant->subscriptions != NULL) {
-						/* Iterate on the subscriptions we know this user has */
-						janus_mutex_lock(&participant->listeners_mutex);
-						GSList *s = participant->subscriptions;
-						while(s) {
-							janus_videoroom_listener *listener = (janus_videoroom_listener *)s->data;
-							if(listener) {
-								listener->kicked = TRUE;
-								listener->audio = FALSE;
-								listener->video = FALSE;
-								listener->data = FALSE;
-								/* FIXME We should also close the PeerConnection, but we risk race conditions if we do it here,
-								 * so for now we mark the listener as kicked and prevent it from getting any media after this */
-							}
-							s = s->next;
-						}
-						janus_mutex_unlock(&participant->listeners_mutex);
-					}
-					/* This publisher is leaving, tell everybody */
-					janus_videoroom_leave_or_unpublish(participant, TRUE, TRUE);
-					/* Tell the core to tear down the PeerConnection, hangup_media will do the rest */
-					if(participant && participant->session)
-						gateway->close_pc(participant->session->handle);
-					JANUS_LOG(LOG_INFO, "Kicked user %"SCNu64" from room %"SCNu64"\n", participant->user_id, participant->room->room_id);
-				}
+				// 	participant->kicked = TRUE;
+				// 	participant->session->started = FALSE;
+				// 	participant->audio_active = FALSE;
+				// 	participant->video_active = FALSE;
+				// 	participant->data_active = FALSE;
+				// 	/* Prepare an event for this */
+				// 	json_t *kicked = json_object();
+				// 	json_object_set_new(kicked, "videoroom", json_string("event"));
+				// 	json_object_set_new(kicked, "room", json_integer(participant->room->room_id));
+				// 	json_object_set_new(kicked, "leaving", json_string("ok"));
+				// 	json_object_set_new(kicked, "reason", json_string("kicked"));
+				// 	int ret = gateway->push_event(participant->session->handle, &janus_videoroom_plugin, NULL, kicked, NULL);
+				// 	JANUS_LOG(LOG_VERB, "  >> %d (%s)\n", ret, janus_get_api_error(ret));
+				// 	json_decref(kicked);
+				// 	janus_mutex_unlock(&videoroom->participants_mutex);
+				// 	/* If this room requires valid private_id values, we can kick subscriptions too */
+				// 	if(videoroom->require_pvtid && participant->subscriptions != NULL) {
+				// 		/* Iterate on the subscriptions we know this user has */
+				// 		janus_mutex_lock(&participant->listeners_mutex);
+				// 		GSList *s = participant->subscriptions;
+				// 		while(s) {
+				// 			janus_videoroom_listener *listener = (janus_videoroom_listener *)s->data;
+				// 			if(listener) {
+				// 				listener->kicked = TRUE;
+				// 				listener->audio = FALSE;
+				// 				listener->video = FALSE;
+				// 				listener->data = FALSE;
+				// 				/* FIXME We should also close the PeerConnection, but we risk race conditions if we do it here,
+				// 				 * so for now we mark the listener as kicked and prevent it from getting any media after this */
+				// 			}
+				// 			s = s->next;
+				// 		}
+				// 		janus_mutex_unlock(&participant->listeners_mutex);
+				// 	}
+				// 	/* This publisher is leaving, tell everybody */
+				// 	janus_videoroom_leave_or_unpublish(participant, TRUE, TRUE);
+				// 	/* Tell the core to tear down the PeerConnection, hangup_media will do the rest */
+				// 	if(participant && participant->session)
+				// 		gateway->close_pc(participant->session->handle);
+				// 	JANUS_LOG(LOG_INFO, "Kicked user %"SCNu64" from room %"SCNu64"\n", participant->user_id, participant->room->room_id);
+				// }
 				if(user_id == 0) {
 					/* Generate a random ID */
 					while(user_id == 0) {
