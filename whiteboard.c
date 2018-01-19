@@ -1,10 +1,10 @@
-#include <dlfcn.h>
+// #include <dlfcn.h>
 #include "whiteboard.h"
 #include <sys/stat.h>
 #include <sys/time.h>
 #include "debug.h"
 #include "utils.h"
-#include "io/io.h"
+// #include "io/io.h"
 
 /*
  * 白板数据和白板头部分开成两个文件，均采用以下形式存储
@@ -44,25 +44,25 @@ int      janus_whiteboard_on_receive_switch_scene_l(janus_whiteboard *whiteboard
 int      janus_whiteboard_generate_and_save_l(janus_whiteboard *whiteboard);
 int 	 janus_whiteboard_add_scene_l(janus_whiteboard *whiteboard, Pb__Scene *newScene);
 
-static janus_io *janus_oss_io = NULL;
+// static janus_io *janus_oss_io = NULL;
 
-void oss_init() {
-	void *io = dlopen("./io_oss.so", RTLD_NOW | RTLD_GLOBAL);
-	if (!io) {
-		printf("error........\n");
-	} else {
-		create_i *create = (create_i*) dlsym(io, "create");
-		const char *dlsym_error = dlerror();
-		if (dlsym_error) {
-			printf("\tCouldn't load symbol 'create': %s\n", dlsym_error);
-		}
-		janus_oss_io = create();
-		if (!janus_oss_io) {
-			printf("create janus oss io error.\n");
-		}
-		printf("oss get_api_compatibility: %d\n", janus_oss_io->get_api_compatibility());
-	}
-}
+// void oss_init() {
+// 	void *io = dlopen("./io_oss.so", RTLD_NOW | RTLD_GLOBAL);
+// 	if (!io) {
+// 		printf("error........\n");
+// 	} else {
+// 		create_i *create = (create_i*) dlsym(io, "create");
+// 		const char *dlsym_error = dlerror();
+// 		if (dlsym_error) {
+// 			printf("\tCouldn't load symbol 'create': %s\n", dlsym_error);
+// 		}
+// 		janus_oss_io = create();
+// 		if (!janus_oss_io) {
+// 			printf("create janus oss io error.\n");
+// 		}
+// 		printf("oss get_api_compatibility: %d\n", janus_oss_io->get_api_compatibility());
+// 	}
+// }
 
 int64_t janus_whiteboard_get_current_time_l(void) {
 	struct timeval tv;
