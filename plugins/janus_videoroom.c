@@ -257,6 +257,7 @@ static struct janus_json_parameter create_parameters[] = {
 	{"rec_dir", JSON_STRING, 0},
 	{"permanent", JANUS_JSON_BOOL, 0},
 	{"notify_joining", JANUS_JSON_BOOL, 0},
+	{"oss_dir", JSON_STRING, 0},
 };
 static struct janus_json_parameter edit_parameters[] = {
 	{"room", JSON_INTEGER, JANUS_JSON_PARAM_REQUIRED | JANUS_JSON_PARAM_POSITIVE},
@@ -269,7 +270,8 @@ static struct janus_json_parameter edit_parameters[] = {
 	{"new_bitrate", JSON_INTEGER, JANUS_JSON_PARAM_POSITIVE},
 	{"new_fir_freq", JSON_INTEGER, JANUS_JSON_PARAM_POSITIVE},
 	{"new_publishers", JSON_INTEGER, JANUS_JSON_PARAM_POSITIVE},
-	{"permanent", JANUS_JSON_BOOL, 0}
+	{"permanent", JANUS_JSON_BOOL, 0},
+	{"oss_dir", JSON_STRING, 0},
 };
 static struct janus_json_parameter room_parameters[] = {
 	{"room", JSON_INTEGER, JANUS_JSON_PARAM_REQUIRED | JANUS_JSON_PARAM_POSITIVE}
@@ -589,6 +591,7 @@ typedef struct janus_videoroom {
 	gboolean check_tokens;		/* Whether to check tokens when participants join (see below) */
 	GHashTable *allowed;		/* Map of participants (as tokens) allowed to join */
 	janus_mutex participants_mutex;/* Mutex to protect room properties */
+	char *oss_dir;
 	janus_whiteboard *whiteboard;/* The Janus recorder instance for this room's data, if enabled */
 	gboolean notify_joining;	/* Whether an event is sent to notify all participants if a new participant joins the room */
 } janus_videoroom;
@@ -691,6 +694,7 @@ static void janus_videoroom_participant_free(janus_videoroom_participant *p);
 static void janus_videoroom_rtp_forwarder_free_helper(gpointer data);
 static guint32 janus_videoroom_rtp_forwarder_add_helper(janus_videoroom_participant *p,
 	const gchar* host, int port, int pt, uint32_t ssrc, int substream, gboolean is_video, gboolean is_data);
+static gboolean is_same_participant(gpointer key,  gpointer value, gpointer user_data);
 
 static void janus_videoroom_relay_participant_packet(janus_videoroom_participant *participant, char *buf, janus_xiao_data_packet_header *header);
 static void janus_videoroom_relay_participant_packet2(janus_videoroom_participant *participant, janus_xiao_data_packet *xiao_packet);
@@ -1297,6 +1301,15 @@ void janus_videoroom_create_session(janus_plugin_session *handle, int *error) {
 	janus_mutex_unlock(&sessions_mutex);
 
 	return;
+}
+
+static gboolean is_same_participant(gpointer key,  gpointer value, gpointer user_data){
+	janus_videoroom_participant *participant = (janus_videoroom_participant*) value;
+	char *display = (char *) user_data;
+	if (strcasecmp(participant->display, display)) {
+		return TRUE;
+	}
+	return FALSE;
 }
 
 static void janus_videoroom_notify_participants(janus_videoroom_participant *participant, json_t *msg) {
@@ -3929,6 +3942,50 @@ static void *janus_videoroom_handler(void *data) {
 						g_snprintf(error_cause, 512, "User ID %"SCNu64" already exists", user_id);
 						goto error;
 					}
+				}
+				janus_videoroom_participant *participant = participantg_hash_table_find(videoroom->participants, is_same_participant, display_text);
+				if (participant && !participant->kicked) {
+
+					participant->kicked = TRUE;
+					participant->session->started = FALSE;
+					participant->audio_active = FALSE;
+					participant->video_active = FALSE;
+					participant->data_active = FALSE;
+					/* Prepare an event for this */
+					json_t *kicked = json_object();
+					json_object_set_new(kicked, "videoroom", json_string("event"));
+					json_object_set_new(kicked, "room", json_integer(participant->room->room_id));
+					json_object_set_new(kicked, "leaving", json_string("ok"));
+					json_object_set_new(kicked, "reason", json_string("kicked"));
+					int ret = gateway->push_event(participant->session->handle, &janus_videoroom_plugin, NULL, kicked, NULL);
+					JANUS_LOG(LOG_VERB, "  >> %d (%s)\n", ret, janus_get_api_error(ret));
+					json_decref(kicked);
+					janus_mutex_unlock(&videoroom->participants_mutex);
+					/* If this room requires valid private_id values, we can kick subscriptions too */
+					if(videoroom->require_pvtid && participant->subscriptions != NULL) {
+						/* Iterate on the subscriptions we know this user has */
+						janus_mutex_lock(&participant->listeners_mutex);
+						GSList *s = participant->subscriptions;
+						while(s) {
+							janus_videoroom_listener *listener = (janus_videoroom_listener *)s->data;
+							if(listener) {
+								listener->kicked = TRUE;
+								listener->audio = FALSE;
+								listener->video = FALSE;
+								listener->data = FALSE;
+								/* FIXME We should also close the PeerConnection, but we risk race conditions if we do it here,
+								 * so for now we mark the listener as kicked and prevent it from getting any media after this */
+							}
+							s = s->next;
+						}
+						janus_mutex_unlock(&participant->listeners_mutex);
+					}
+					/* This publisher is leaving, tell everybody */
+					janus_videoroom_leave_or_unpublish(participant, TRUE, TRUE);
+					/* Tell the core to tear down the PeerConnection, hangup_media will do the rest */
+					if(participant && participant->session)
+						gateway->close_pc(participant->session->handle);
+					JANUS_LOG(LOG_INFO, "Kicked user %"SCNu64" from room %"SCNu64"\n", participant->user_id, participant->room->room_id);
 				}
 				if(user_id == 0) {
 					/* Generate a random ID */

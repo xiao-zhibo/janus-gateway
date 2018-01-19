@@ -1,8 +1,10 @@
+#include <dlfcn.h>
 #include "whiteboard.h"
 #include <sys/stat.h>
 #include <sys/time.h>
 #include "debug.h"
 #include "utils.h"
+#include "io/io.h"
 
 /*
  * 白板数据和白板头部分开成两个文件，均采用以下形式存储
@@ -41,6 +43,26 @@ int      janus_whiteboard_on_receive_keyframe_l(janus_whiteboard *whiteboard, Pb
 int      janus_whiteboard_on_receive_switch_scene_l(janus_whiteboard *whiteboard, Pb__Package *package);
 int      janus_whiteboard_generate_and_save_l(janus_whiteboard *whiteboard);
 int 	 janus_whiteboard_add_scene_l(janus_whiteboard *whiteboard, Pb__Scene *newScene);
+
+static janus_io *janus_oss_io = NULL;
+
+void oss_init() {
+	void *io = dlopen("./io_oss.so", RTLD_NOW | RTLD_GLOBAL);
+	if (!io) {
+		printf("error........\n");
+	} else {
+		create_i *create = (create_i*) dlsym(io, "create");
+		const char *dlsym_error = dlerror();
+		if (dlsym_error) {
+			printf("\tCouldn't load symbol 'create': %s\n", dlsym_error);
+		}
+		janus_oss_io = create();
+		if (!janus_oss_io) {
+			printf("create janus oss io error.\n");
+		}
+		printf("oss get_api_compatibility: %d\n", janus_oss_io->get_api_compatibility());
+	}
+}
 
 int64_t janus_whiteboard_get_current_time_l(void) {
 	struct timeval tv;
@@ -404,8 +426,20 @@ int janus_whiteboard_add_scene_l(janus_whiteboard *whiteboard, Pb__Scene *newSce
 	if (newScene->index == -1) {
 		newScene->index = whiteboard->scene_num;
 	}
-	whiteboard->scene_num = newScene->index;
-	whiteboard->scenes[whiteboard->scene_num ++] = j_scene;
+	if (newScene->index >= whiteboard->scene_num) {
+		whiteboard->scene_num = newScene->index;
+		whiteboard->scenes[whiteboard->scene_num ++] = j_scene;
+	} else {
+		janus_scene *tmp_scene = whiteboard->scenes[newScene->index];
+		if (tmp_scene) {
+			if (tmp_scene->page_num > 0 && tmp_scene->page_keyframes) {
+				g_free(tmp_scene->page_keyframes);
+				g_free(tmp_scene->source_url);
+			}
+			g_free(tmp_scene);
+		}
+		whiteboard->scenes[newScene->index] = j_scene;
+	}
 
 	/*! 将 keyframe 保存到文件 */
 	size_t length = pb__scene__get_packed_size(newScene);
