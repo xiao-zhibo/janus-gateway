@@ -426,22 +426,20 @@ int janus_whiteboard_add_scene_l(janus_whiteboard *whiteboard, Pb__Scene *newSce
 	if (newScene->index == -1) {
 		newScene->index = whiteboard->scene_num;
 	}
-	whiteboard->scene_num = newScene->index;
-	whiteboard->scenes[whiteboard->scene_num ++] = j_scene;
-	// if (newScene->index >= whiteboard->scene_num) {
-	// 	whiteboard->scene_num = newScene->index;
-	// 	whiteboard->scenes[whiteboard->scene_num ++] = j_scene;
-	// } else {
-	// 	janus_scene *tmp_scene = whiteboard->scenes[newScene->index];
-	// 	if (tmp_scene) {
-	// 		if (tmp_scene->page_num > 0 && tmp_scene->page_keyframes) {
-	// 			g_free(tmp_scene->page_keyframes);
-	// 			g_free(tmp_scene->source_url);
-	// 		}
-	// 		g_free(tmp_scene);
-	// 	}
-	// 	whiteboard->scenes[newScene->index] = j_scene;
-	// }
+	if (newScene->index >= whiteboard->scene_num) {
+		whiteboard->scene_num = newScene->index;
+		whiteboard->scenes[whiteboard->scene_num ++] = j_scene;
+	} else {
+		janus_scene *tmp_scene = whiteboard->scenes[newScene->index];
+		if (tmp_scene) {
+			if (tmp_scene->page_num > 0 && tmp_scene->page_keyframes) {
+				g_free(tmp_scene->page_keyframes);
+				g_free(tmp_scene->source_url);
+			}
+			g_free(tmp_scene);
+		}
+		whiteboard->scenes[newScene->index] = j_scene;
+	}
 
 	/*! 将 keyframe 保存到文件 */
 	size_t length = pb__scene__get_packed_size(newScene);
