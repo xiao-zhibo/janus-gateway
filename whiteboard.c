@@ -1,10 +1,9 @@
-// #include <dlfcn.h>
+#include <dlfcn.h>
 #include "whiteboard.h"
 #include <sys/stat.h>
 #include <sys/time.h>
 #include "debug.h"
 #include "utils.h"
-// #include "io/io.h"
 
 /*
  * 白板数据和白板头部分开成两个文件，均采用以下形式存储
@@ -44,25 +43,56 @@ int      janus_whiteboard_on_receive_switch_scene_l(janus_whiteboard *whiteboard
 int      janus_whiteboard_generate_and_save_l(janus_whiteboard *whiteboard);
 int 	 janus_whiteboard_add_scene_l(janus_whiteboard *whiteboard, Pb__Scene *newScene);
 
-// static janus_io *janus_oss_io = NULL;
+static janus_io *janus_oss_io = NULL;
 
-// void oss_init() {
-// 	void *io = dlopen("./io_oss.so", RTLD_NOW | RTLD_GLOBAL);
-// 	if (!io) {
-// 		printf("error........\n");
-// 	} else {
-// 		create_i *create = (create_i*) dlsym(io, "create");
-// 		const char *dlsym_error = dlerror();
-// 		if (dlsym_error) {
-// 			printf("\tCouldn't load symbol 'create': %s\n", dlsym_error);
-// 		}
-// 		janus_oss_io = create();
-// 		if (!janus_oss_io) {
-// 			printf("create janus oss io error.\n");
-// 		}
-// 		printf("oss get_api_compatibility: %d\n", janus_oss_io->get_api_compatibility());
-// 	}
-// }
+void oss_init() {
+	void *io = dlopen("./io_oss.so", RTLD_NOW | RTLD_GLOBAL);
+	if (!io) {
+		printf("error........\n");
+	} else {
+		create_i *create = (create_i*) dlsym(io, "create");
+		const char *dlsym_error = dlerror();
+		if (dlsym_error) {
+			printf("\tCouldn't load symbol 'create': %s\n", dlsym_error);
+		}
+		janus_oss_io = create();
+		if (!janus_oss_io) {
+			printf("create janus oss io error.\n");
+		}
+		printf("oss get_api_compatibility: %d\n", janus_oss_io->get_api_compatibility());
+	}
+}
+
+janus_whiteboard *janus_whiteboard_with_oss_create(const char *dir, const char *filename);
+
+janus_whiteboard *janus_whiteboard_with_oss_create(const char *dir, const char *filename) {
+	const size_t name_length_l = 1024;
+	/* generate filename */
+	char data_file_name[name_length_l], header_file_name[name_length_l], scene_file_name[name_length_l], page_file_name[name_length_l];
+	memset(data_file_name,   0, name_length_l);
+	memset(header_file_name, 0, name_length_l);
+	memset(scene_file_name,  0, name_length_l);
+	memset(page_file_name,  0, name_length_l);
+	g_snprintf(data_file_name,   name_length_l, "%s.data", filename);
+	g_snprintf(header_file_name, name_length_l, "%s.head", filename);
+	g_snprintf(scene_file_name, name_length_l, "%s.scene", filename);
+	g_snprintf(page_file_name, name_length_l, "%s.page", filename);
+
+	janus_whiteboard *whiteboard = g_malloc0(sizeof(janus_whiteboard));
+	if(whiteboard == NULL) {
+		JANUS_LOG(LOG_FATAL, "Out of Memory when alloc memory for struct whiteboard!\n");
+		return NULL;
+	}
+	whiteboard->scene_info = janus_io_info_new(scene_file_name);
+	whiteboard->header_info = janus_io_info_new(header_file_name);
+	whiteboard->page_info = janus_io_info_new(page_file_name);
+	whiteboard->packet_info = janus_io_info_new(data_file_name);
+
+	janus_oss_io->io_info_create(whiteboard->scene_info);
+	janus_oss_io->io_info_create(whiteboard->header_info);
+	janus_oss_io->io_info_create(whiteboard->page_info);
+	janus_oss_io->io_info_create(whiteboard->packet_info);
+}
 
 int64_t janus_whiteboard_get_current_time_l(void) {
 	struct timeval tv;

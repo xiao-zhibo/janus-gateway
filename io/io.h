@@ -73,6 +73,10 @@ struct janus_io {
 
 };
 
+janus_io_info *janus_io_info_new(const char *path);
+
+void janus_io_info_free(const janus_io_info *io_info);
+
 /*! \brief The hook that transport plugins need to implement to be created from the gateway */
 typedef janus_io* create_i(void);
 

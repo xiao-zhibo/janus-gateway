@@ -8,6 +8,8 @@
 #include "protobuf/command.pb-c.h"
 #include "mutex.h"
 
+#include "io/io.h"
+
 typedef enum
 {
     KLDrawCommandType_BeginDraw = 0,
@@ -49,6 +51,11 @@ typedef struct janus_whiteboard {
 	char *dir;
 	/*! \brief Filename of this whiteboard file */ 
 	char *filename;
+
+	janus_io_info *scene_info;
+	janus_io_info *header_info;
+	janus_io_info *page_info;
+	janus_io_info *packet_info;
 	/*! \brief whiteboard header file */
 	FILE *header_file;
 	/*! \brief whiteboard scene data */
@@ -95,6 +102,8 @@ typedef struct janus_whiteboard_result {
 // void janus_whiteboard_init(gboolean tempnames, const char *extension);
 /*! \brief De-initialize the whiteboard code */
 // void janus_whiteboard_deinit(void);
+
+void oss_init();
 
 /*! \brief Create a new whiteboard
  * \note If no target directory is provided, the current directory will be used. If no filename
