@@ -1356,6 +1356,7 @@ static void janus_videoroom_leave_or_unpublish(janus_videoroom_participant *part
 		json_object_set_new(event, "room", json_integer(participant->room->room_id));
 		json_object_set_new(event, is_leaving ? (kicked ? "kicked" : "leaving_id") : "unpublished",
 			json_integer(participant->user_id));
+		json_object_set_new(event, "display", json_string(participant->display));
 		janus_mutex_lock(&participant->room->participants_mutex);
 		janus_videoroom_notify_participants(participant, event);
 		if(is_leaving) {
