@@ -1305,8 +1305,9 @@ void janus_videoroom_create_session(janus_plugin_session *handle, int *error) {
 
 static gboolean is_same_participant(gpointer key,  gpointer value, gpointer user_data){
 	janus_videoroom_participant *participant = (janus_videoroom_participant*) value;
-	char *display = (char *) user_data;
-	if (strcasecmp((char *)participant->display, display)) {
+	char *display_text = (char *) user_data;
+	char *value_display = (char *)participant->display;
+	if (!strcasecmp(value_display, display_text)) {
 		return TRUE;
 	}
 	return FALSE;
@@ -1353,7 +1354,7 @@ static void janus_videoroom_leave_or_unpublish(janus_videoroom_participant *part
 		json_t *event = json_object();
 		json_object_set_new(event, "videoroom", json_string("event"));
 		json_object_set_new(event, "room", json_integer(participant->room->room_id));
-		json_object_set_new(event, is_leaving ? (kicked ? "kicked" : "leaving") : "unpublished",
+		json_object_set_new(event, is_leaving ? (kicked ? "kicked" : "leaving_id") : "unpublished",
 			json_integer(participant->user_id));
 		janus_mutex_lock(&participant->room->participants_mutex);
 		janus_videoroom_notify_participants(participant, event);
@@ -3945,21 +3946,21 @@ static void *janus_videoroom_handler(void *data) {
 				}
 				janus_videoroom_participant *participant = (janus_videoroom_participant *)g_hash_table_find(videoroom->participants, is_same_participant, display_text);
 				if (participant && !participant->kicked) {
-
+					JANUS_LOG(LOG_INFO, "kick the same user user name: %s ---> %"SCNu64"\n", participant->display, participant->user_id);
 					participant->kicked = TRUE;
 					participant->session->started = FALSE;
 					participant->audio_active = FALSE;
 					participant->video_active = FALSE;
 					participant->data_active = FALSE;
 					/* Prepare an event for this */
-					json_t *kicked = json_object();
-					json_object_set_new(kicked, "videoroom", json_string("event"));
-					json_object_set_new(kicked, "room", json_integer(participant->room->room_id));
-					json_object_set_new(kicked, "leaving", json_string("ok"));
-					json_object_set_new(kicked, "reason", json_string("kicked"));
-					int ret = gateway->push_event(participant->session->handle, &janus_videoroom_plugin, NULL, kicked, NULL);
-					JANUS_LOG(LOG_VERB, "  >> %d (%s)\n", ret, janus_get_api_error(ret));
-					json_decref(kicked);
+					// json_t *kicked = json_object();
+					// json_object_set_new(kicked, "videoroom", json_string("event"));
+					// json_object_set_new(kicked, "room", json_integer(participant->room->room_id));
+					// json_object_set_new(kicked, "leaving", json_string("ok"));
+					// json_object_set_new(kicked, "reason", json_string("kicked"));
+					// int ret = gateway->push_event(participant->session->handle, &janus_videoroom_plugin, NULL, kicked, NULL);
+					// JANUS_LOG(LOG_VERB, "  >> %d (%s)\n", ret, janus_get_api_error(ret));
+					// json_decref(kicked);
 					janus_mutex_unlock(&videoroom->participants_mutex);
 					/* If this room requires valid private_id values, we can kick subscriptions too */
 					if(videoroom->require_pvtid && participant->subscriptions != NULL) {
