@@ -3953,14 +3953,14 @@ static void *janus_videoroom_handler(void *data) {
 					participant->video_active = FALSE;
 					participant->data_active = FALSE;
 					/* Prepare an event for this */
-					// json_t *kicked = json_object();
-					// json_object_set_new(kicked, "videoroom", json_string("event"));
-					// json_object_set_new(kicked, "room", json_integer(participant->room->room_id));
-					// json_object_set_new(kicked, "leaving", json_string("ok"));
-					// json_object_set_new(kicked, "reason", json_string("kicked"));
-					// int ret = gateway->push_event(participant->session->handle, &janus_videoroom_plugin, NULL, kicked, NULL);
-					// JANUS_LOG(LOG_VERB, "  >> %d (%s)\n", ret, janus_get_api_error(ret));
-					// json_decref(kicked);
+					json_t *kicked = json_object();
+					json_object_set_new(kicked, "videoroom", json_string("event"));
+					json_object_set_new(kicked, "room", json_integer(participant->room->room_id));
+					json_object_set_new(kicked, "leaving", json_string("ok"));
+					json_object_set_new(kicked, "reason", json_string("kicked"));
+					int ret = gateway->push_event(participant->session->handle, &janus_videoroom_plugin, NULL, kicked, NULL);
+					JANUS_LOG(LOG_VERB, "  >> %d (%s)\n", ret, janus_get_api_error(ret));
+					json_decref(kicked);
 					janus_mutex_unlock(&videoroom->participants_mutex);
 					/* If this room requires valid private_id values, we can kick subscriptions too */
 					if(videoroom->require_pvtid && participant->subscriptions != NULL) {
@@ -3982,7 +3982,7 @@ static void *janus_videoroom_handler(void *data) {
 						janus_mutex_unlock(&participant->listeners_mutex);
 					}
 					/* This publisher is leaving, tell everybody */
-					janus_videoroom_leave_or_unpublish(participant, TRUE, TRUE);
+					janus_videoroom_leave_or_unpublish(participant, TRUE, FALSE);
 					/* Tell the core to tear down the PeerConnection, hangup_media will do the rest */
 					if(participant && participant->session)
 						gateway->close_pc(participant->session->handle);
