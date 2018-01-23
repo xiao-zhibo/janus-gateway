@@ -1,6 +1,6 @@
 [general]
 endpoint = oss-cn-shenzhen-internal.aliyuncs.com
-access_key_id = 1234
-access_key_secret = 1234
+access_key_id = "3vl2n2NNTv3HkQtI"
+access_key_secret = "wN4X0k6Gx8pSs2PsJrNubYv3v1uIm9"
 bucket = spark-courseware
 prefix = dev/sloth
