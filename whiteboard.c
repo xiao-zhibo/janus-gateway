@@ -30,6 +30,7 @@
 
 /*! 本地函数，前置声明 */
 int64_t  janus_whiteboard_get_current_time_l(void);
+gboolean janus_whiteboard_check_diretory(const char *dir);
 char	 janus_whiteboard_package_check(janus_whiteboard *whiteboard, Pb__Package *package);
 int      janus_whiteboard_read_packet_from_file_l(void* dst, size_t len, FILE *src_file);
 int      janus_whiteboard_write_packet_to_file_l(void* src, size_t len, FILE *dst_file);
@@ -45,59 +46,214 @@ int 	 janus_whiteboard_add_scene_l(janus_whiteboard *whiteboard, Pb__Scene *newS
 
 static janus_io *janus_oss_io = NULL;
 
-void oss_init() {
-	void *io = dlopen("./io_oss.so", RTLD_NOW | RTLD_GLOBAL);
+void oss_init(const char *io_folder) {
+	void *io = dlopen(io_folder, RTLD_NOW | RTLD_GLOBAL);
 	if (!io) {
-		printf("error........\n");
+		JANUS_LOG(LOG_ERR, "open janus oss error: %s\n", dlerror());
 	} else {
 		create_i *create = (create_i*) dlsym(io, "create");
 		const char *dlsym_error = dlerror();
 		if (dlsym_error) {
-			printf("\tCouldn't load symbol 'create': %s\n", dlsym_error);
+			JANUS_LOG(LOG_ERR, "\tCouldn't load symbol 'create': %s\n", dlsym_error);
 		}
 		janus_oss_io = create();
 		if (!janus_oss_io) {
-			printf("create janus oss io error.\n");
+			JANUS_LOG(LOG_ERR, "create janus oss io error.\n");
 		}
-		printf("oss get_api_compatibility: %d\n", janus_oss_io->get_api_compatibility());
+		janus_oss_io->init("");
+		JANUS_LOG(LOG_ERR, "oss get_api_compatibility: %d\n", janus_oss_io->get_api_compatibility());
 	}
 }
 
-janus_whiteboard *janus_whiteboard_with_oss_create(const char *dir, const char *filename);
+janus_whiteboard *janus_whiteboard_create_with_oss(const char *oss_path, const char *dir, const char *filename);
+int janus_whiteboard_save_packet_oss(void *src, size_t len, FILE *file, janus_io_info *io_info);
 
-janus_whiteboard *janus_whiteboard_with_oss_create(const char *dir, const char *filename) {
-	const size_t name_length_l = 1024;
-	/* generate filename */
-	char data_file_name[name_length_l], header_file_name[name_length_l], scene_file_name[name_length_l], page_file_name[name_length_l];
-	memset(data_file_name,   0, name_length_l);
-	memset(header_file_name, 0, name_length_l);
-	memset(scene_file_name,  0, name_length_l);
-	memset(page_file_name,  0, name_length_l);
-	g_snprintf(data_file_name,   name_length_l, "%s.data", filename);
-	g_snprintf(header_file_name, name_length_l, "%s.head", filename);
-	g_snprintf(scene_file_name, name_length_l, "%s.scene", filename);
-	g_snprintf(page_file_name, name_length_l, "%s.page", filename);
+janus_whiteboard *janus_whiteboard_create_with_oss(const char *oss_path, const char *dir, const char *filename) {
+	if(!janus_whiteboard_check_diretory(dir)) {
+		return NULL;
+	}
+	dir == NULL ? "" : dir;
 
 	janus_whiteboard *whiteboard = g_malloc0(sizeof(janus_whiteboard));
 	if(whiteboard == NULL) {
 		JANUS_LOG(LOG_FATAL, "Out of Memory when alloc memory for struct whiteboard!\n");
 		return NULL;
 	}
-	whiteboard->scene_info = janus_io_info_new(scene_file_name);
-	whiteboard->header_info = janus_io_info_new(header_file_name);
-	whiteboard->page_info = janus_io_info_new(page_file_name);
-	whiteboard->packet_info = janus_io_info_new(data_file_name);
 
-	janus_oss_io->io_info_create(whiteboard->scene_info);
-	janus_oss_io->io_info_create(whiteboard->header_info);
-	janus_oss_io->io_info_create(whiteboard->page_info);
-	janus_oss_io->io_info_create(whiteboard->packet_info);
+	const size_t length = 1024;
+	/* generate filename */
+	whiteboard->scene_info = NULL;
+	whiteboard->header_info = NULL;
+	whiteboard->page_info = NULL;
+	whiteboard->packet_info = NULL;
+	if (oss_path && strlen(oss_path) > 0) {
+		char packet_path[length], header_path[length], scene_path[length], page_path[length];
+		memset(scene_path,   0, length);
+		memset(header_path, 0, length);
+		memset(page_path,  0, length);
+		memset(packet_path,  0, length);
+		g_snprintf(packet_path,   length, "%s/%s.data", oss_path, filename);
+		g_snprintf(header_path, length, "%s/%s.header", oss_path, filename);
+		g_snprintf(scene_path, length, "%s/%s.scene", oss_path, filename);
+		g_snprintf(page_path, length, "%s/%s.page", oss_path, filename);
+
+		JANUS_LOG(LOG_WARN, "new scene io info: %s!\n", scene_path);
+		whiteboard->scene_info = janus_io_info_new(scene_path);
+		JANUS_LOG(LOG_WARN, "new header io info!\n");
+		whiteboard->header_info = janus_io_info_new(header_path);
+		JANUS_LOG(LOG_WARN, "new page io info!\n");
+		whiteboard->page_info = janus_io_info_new(page_path);
+		JANUS_LOG(LOG_WARN, "new packet io info!\n");
+		whiteboard->packet_info = janus_io_info_new(packet_path);
+		JANUS_LOG(LOG_WARN, "whiteboard io info new success!\n");
+
+
+		JANUS_LOG(LOG_WARN, "init scene io info!\n");
+		if (janus_oss_io && janus_oss_io->io_info_create(whiteboard->scene_info) < 0) {
+			JANUS_LOG(LOG_WARN, "init scene io info error!\n");
+			// g_free(whiteboard);
+			return NULL;
+		}
+		JANUS_LOG(LOG_WARN, "init header io info!\n");
+		if (janus_oss_io && janus_oss_io->io_info_create(whiteboard->header_info) < 0) {
+			JANUS_LOG(LOG_WARN, "init header io info error!\n");
+			g_free(whiteboard);
+			return NULL;
+		}
+		JANUS_LOG(LOG_WARN, "init page io info!\n");
+		if (janus_oss_io && janus_oss_io->io_info_create(whiteboard->page_info) < 0) {
+			JANUS_LOG(LOG_WARN, "init page io info error!\n");
+			g_free(whiteboard);
+			return NULL;
+		}
+		JANUS_LOG(LOG_WARN, "init packet io info!\n");
+		if (janus_oss_io && janus_oss_io->io_info_create(whiteboard->packet_info) < 0) {
+			JANUS_LOG(LOG_WARN, "init packet io info error!\n");
+			g_free(whiteboard);
+			return NULL;
+		}
+	}
+	JANUS_LOG(LOG_WARN, "whiteboard io info init success!\n");
+
+	/* generate filename */
+	whiteboard->dir = NULL;
+	whiteboard->filename = NULL;
+	whiteboard->header_file = NULL;
+	whiteboard->file = NULL;
+	char data_file_name[length], header_file_name[length], scene_file_name[length], page_file_name[length];
+	memset(data_file_name,   0, length);
+	memset(header_file_name, 0, length);
+	memset(scene_file_name,  0, length);
+	memset(page_file_name,  0, length);
+	g_snprintf(data_file_name,   length, "%s/%s.data", dir, filename);
+	g_snprintf(header_file_name, length, "%s/%s.head", dir, filename);
+	g_snprintf(scene_file_name, length, "%s/%s.scene", dir, filename);
+	g_snprintf(page_file_name, length, "%s/%s.page", dir, filename);
+
+	if (janus_oss_io && whiteboard->scene_info && whiteboard->header_info && whiteboard->page_info && whiteboard->packet_info) {
+		if (janus_oss_io->read_data_to_file(whiteboard->scene_info, scene_file_name) < 0) {
+			g_free(whiteboard);
+			return NULL;
+		}
+		if (janus_oss_io->read_data_to_file(whiteboard->header_info, header_file_name) < 0) {
+			g_free(whiteboard);
+			return NULL;
+		}
+		if (janus_oss_io->read_data_to_file(whiteboard->page_info, page_file_name) < 0) {
+			g_free(whiteboard);
+			return NULL;
+		}
+		if (janus_oss_io->read_data_to_file(whiteboard->packet_info, data_file_name) < 0) {
+			g_free(whiteboard);
+			return NULL;
+		}
+	}
+
+	/* Try opening the data file */
+	whiteboard->file = fopen(data_file_name, "ab+");
+	if(whiteboard->file == NULL) {
+		JANUS_LOG(LOG_ERR, "fopen %s error: %d\n", data_file_name, errno);
+		g_free(whiteboard);
+		return NULL;
+	}
+	/* Try opening the header file */
+	whiteboard->header_file = fopen(header_file_name, "ab+");
+	if(whiteboard->header_file == NULL) {
+		/* avoid memory leak */
+		fclose(whiteboard->file);
+		JANUS_LOG(LOG_ERR, "fopen %s error: %d\n", header_file_name, errno);
+		g_free(whiteboard);
+		return NULL;
+	}
+	/* Try opening the scene data file */
+	whiteboard->scene_file = fopen(scene_file_name, "ab+");
+	if (whiteboard->scene_file == NULL) {
+		fclose(whiteboard->file);
+		fclose(whiteboard->header_file);
+		JANUS_LOG(LOG_ERR, "fopen %s error: %d\n", scene_file_name, errno);
+		g_free(whiteboard);
+		return NULL;
+	}
+	/* Try opening the page index file */
+	whiteboard->page_file = fopen(page_file_name, "ab+");
+	if (whiteboard->page_file == NULL) {
+		fclose(whiteboard->file);
+		fclose(whiteboard->header_file);
+		fclose(whiteboard->scene_file);
+		JANUS_LOG(LOG_ERR, "fopen %s error: %d\n", page_file_name, errno);
+		g_free(whiteboard);
+		return NULL;
+	}
+	if(dir)
+		whiteboard->dir = g_strdup(dir);
+	whiteboard->filename = g_strdup(filename);
+	return whiteboard;
+}
+
+int janus_whiteboard_save_packet_oss(void *src, size_t len, FILE *file, janus_io_info *io_info) {
+	janus_whiteboard_write_packet_to_file_l(src, len, file);
+	if (janus_oss_io && io_info) {
+		janus_oss_io->write_data(io_info, src, len);
+	}
 }
 
 int64_t janus_whiteboard_get_current_time_l(void) {
 	struct timeval tv;
 	gettimeofday(&tv, NULL);
 	return (int64_t)tv.tv_sec * 1000 + tv.tv_usec / 1000;
+}
+
+gboolean janus_whiteboard_check_diretory(const char *dir) {
+	/* Check if this directory exists, and create it if needed */
+	if(dir != NULL) {
+		struct stat s;
+		int err = stat(dir, &s);
+		if(err == -1) {
+			if(ENOENT == errno) {
+				/* Directory does not exist, try creating it */
+				if(janus_mkdir(dir, 0755) < 0) {
+					JANUS_LOG(LOG_ERR, "mkdir error: %d\n", errno);
+					return FALSE;
+				}
+			} else {
+				JANUS_LOG(LOG_ERR, "stat error: %d\n", errno);
+				return FALSE;
+			}
+		} else {
+			if(S_ISDIR(s.st_mode)) {
+				/* Directory exists */
+				JANUS_LOG(LOG_VERB, "Directory exists: %s\n", dir);
+			} else {
+				/* File exists but it's not a directory, try creating it */
+				if(janus_mkdir(dir, 0755) < 0) {
+					JANUS_LOG(LOG_ERR, "mkdir error: %d\n", errno);
+					return FALSE;
+				}
+				return FALSE;
+			}
+		}
+	}
+	return TRUE;
 }
 
 char janus_whiteboard_package_check(janus_whiteboard *whiteboard, Pb__Package *package) {
@@ -324,105 +480,13 @@ int janus_whiteboard_parse_or_create_header_l(janus_whiteboard *whiteboard) {
 }
 
 /*! 创建白板模块，如果创建成功，则尝试从文件里读取历史保留的数据到当前场景(scene) */
-janus_whiteboard *janus_whiteboard_create(const char *dir, const char *filename, int scene) {
+janus_whiteboard *janus_whiteboard_create(const char *oss_path, const char *local_dir, const char *filename) {
 	/* Create the recorder */
-	janus_whiteboard *whiteboard = g_malloc0(sizeof(janus_whiteboard));
+	janus_whiteboard *whiteboard = janus_whiteboard_create_with_oss(oss_path, local_dir, filename);
 	if(whiteboard == NULL) {
-		JANUS_LOG(LOG_FATAL, "Out of Memory when alloc memory for struct whiteboard!\n");
+		JANUS_LOG(LOG_FATAL, "Out of Memory when init whiteboard with oss!\n");
 		return NULL;
 	}
-	whiteboard->dir = NULL;
-	whiteboard->filename = NULL;
-	whiteboard->header_file = NULL;
-	whiteboard->file = NULL;
-	
-	/* Check if this directory exists, and create it if needed */
-	if(dir != NULL) {
-		struct stat s;
-		int err = stat(dir, &s);
-		if(err == -1) {
-			if(ENOENT == errno) {
-				/* Directory does not exist, try creating it */
-				if(janus_mkdir(dir, 0755) < 0) {
-					JANUS_LOG(LOG_ERR, "mkdir error: %d\n", errno);
-					return NULL;
-				}
-			} else {
-				JANUS_LOG(LOG_ERR, "stat error: %d\n", errno);
-				return NULL;
-			}
-		} else {
-			if(S_ISDIR(s.st_mode)) {
-				/* Directory exists */
-				JANUS_LOG(LOG_VERB, "Directory exists: %s\n", dir);
-			} else {
-				/* File exists but it's not a directory, try creating it */
-				if(janus_mkdir(dir, 0755) < 0) {
-					JANUS_LOG(LOG_ERR, "mkdir error: %d\n", errno);
-					return NULL;
-				}
-				return NULL;
-			}
-		}
-	}
-
-	const size_t name_length_l = 1024;
-	/* generate filename */
-	char data_file_name[name_length_l], header_file_name[name_length_l], scene_file_name[name_length_l], page_file_name[name_length_l];
-	memset(data_file_name,   0, name_length_l);
-	memset(header_file_name, 0, name_length_l);
-	memset(scene_file_name,  0, name_length_l);
-	memset(page_file_name,  0, name_length_l);
-	g_snprintf(data_file_name,   name_length_l, "%s.data", filename);
-	g_snprintf(header_file_name, name_length_l, "%s.head", filename);
-	g_snprintf(scene_file_name, name_length_l, "%s.scene", filename);
-	g_snprintf(page_file_name, name_length_l, "%s.page", filename);
-	/* generate path name */
-	char dir_local[name_length_l], data_path[name_length_l], header_path[name_length_l], scene_path[name_length_l], page_path[name_length_l];
-	memset(dir_local,   0, name_length_l);
-	memset(data_path,   0, name_length_l);
-	memset(header_path, 0, name_length_l);
-	memset(scene_path,  0, name_length_l);
-	memset(page_path,  0, name_length_l);
-	g_snprintf(dir_local,   name_length_l, "%s", dir == NULL ? "" : dir);
-	g_snprintf(data_path,   name_length_l, "%s/%s", dir_local, data_file_name);
-	g_snprintf(header_path, name_length_l, "%s/%s", dir_local, header_file_name);
-	g_snprintf(scene_path,  name_length_l, "%s/%s", dir_local, scene_file_name);
-	g_snprintf(page_path,  name_length_l, "%s/%s", dir_local, scene_file_name);
-
-	/* Try opening the data file */
-	whiteboard->file = fopen(data_path, "ab+");
-	if(whiteboard->file == NULL) {
-		JANUS_LOG(LOG_ERR, "fopen %s error: %d\n", data_path, errno);
-		return NULL;
-	}
-	/* Try opening the header file */
-	whiteboard->header_file = fopen(header_path, "ab+");
-	if(whiteboard->header_file == NULL) {
-		/* avoid memory leak */
-		fclose(whiteboard->file);
-		JANUS_LOG(LOG_ERR, "fopen %s error: %d\n", header_path, errno);
-		return NULL;
-	}
-	/* Try opening the scene data file */
-	whiteboard->scene_file = fopen(scene_path, "ab+");
-	if (whiteboard->scene_file == NULL) {
-		fclose(whiteboard->file);
-		fclose(whiteboard->header_file);
-		JANUS_LOG(LOG_ERR, "fopen %s error: %d\n", scene_path, errno);
-		return NULL;
-	}
-	/* Try opening the page index file */
-	whiteboard->page_file = fopen(page_path, "ab+");
-	if (whiteboard->page_file == NULL) {
-		fclose(whiteboard->file);
-		fclose(whiteboard->header_file);
-		JANUS_LOG(LOG_ERR, "fopen %s error: %d\n", scene_path, errno);
-		return NULL;
-	}
-	if(dir)
-		whiteboard->dir = g_strdup(dir);
-	whiteboard->filename = g_strdup(filename);
 
     if (janus_whiteboard_parse_or_create_header_l(whiteboard) < 0) {
     	    JANUS_LOG(LOG_ERR, "Parse or create header error.\n");
@@ -1052,6 +1116,36 @@ int janus_whiteboard_close(janus_whiteboard *whiteboard) {
 		fseek(whiteboard->scene_file, 0L, SEEK_END);
 		size_t fsize = ftell(whiteboard->scene_file);
 		JANUS_LOG(LOG_INFO, "whiteboard scene file is %zu bytes: %s\n", fsize, whiteboard->filename);
+	}
+	if (whiteboard->page_file) {
+		fseek(whiteboard->page_file, 0L, SEEK_END);
+		size_t fsize = ftell(whiteboard->page_file);
+		JANUS_LOG(LOG_INFO, "whiteboard scene file is %zu bytes: %s\n", fsize, whiteboard->filename);
+	}
+
+	if (whiteboard->scene_info) {
+		janus_oss_io->io_info_close(whiteboard->scene_info);
+		janus_io_info_destroy(whiteboard->scene_info);
+		whiteboard->scene_info = NULL;
+		JANUS_LOG(LOG_INFO, "close scene info to oss.");
+	}
+	if (whiteboard->header_info) {
+		janus_oss_io->io_info_close(whiteboard->header_info);
+		janus_io_info_destroy(whiteboard->header_info);
+		whiteboard->header_info = NULL;
+		JANUS_LOG(LOG_INFO, "close header info to oss.");
+	}
+	if (whiteboard->page_info) {
+		janus_oss_io->io_info_close(whiteboard->page_info);
+		janus_io_info_destroy(whiteboard->page_info);
+		whiteboard->page_info = NULL;
+		JANUS_LOG(LOG_INFO, "close page info to oss.");
+	}
+	if (whiteboard->packet_info) {
+		janus_oss_io->io_info_close(whiteboard->packet_info);
+		janus_io_info_destroy(whiteboard->packet_info);
+		whiteboard->packet_info = NULL;
+		JANUS_LOG(LOG_INFO, "close data info to oss.");
 	}
 	janus_mutex_unlock_nodebug(&whiteboard->mutex);
 	return 0;

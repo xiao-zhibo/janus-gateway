@@ -52,6 +52,7 @@ typedef struct janus_whiteboard {
 	/*! \brief Filename of this whiteboard file */ 
 	char *filename;
 
+	char *oss_path;
 	janus_io_info *scene_info;
 	janus_io_info *header_info;
 	janus_io_info *page_info;
@@ -103,7 +104,7 @@ typedef struct janus_whiteboard_result {
 /*! \brief De-initialize the whiteboard code */
 // void janus_whiteboard_deinit(void);
 
-void oss_init();
+void oss_init(const char *io_folder);
 
 /*! \brief Create a new whiteboard
  * \note If no target directory is provided, the current directory will be used. If no filename
@@ -111,7 +112,7 @@ void oss_init();
  * @param[in] dir Path of the directory to save the recording into (will try to create it if it doesn't exist)
  * @param[in] filename Filename to use for the recording
  * @returns A valid janus_whiteboard instance in case of success, NULL otherwise */
-janus_whiteboard *janus_whiteboard_create(const char *dir, const char *filename, int scene);
+janus_whiteboard *janus_whiteboard_create(const char *oss_path, const char *local_dir, const char *filename);
 /*! \brief Save an RTP whiteboard frame in the whiteboard
  * @param[in] whiteboard The janus_whiteboard instance to save the frame to
  * @param[in] buffer The frame data to save
