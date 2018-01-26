@@ -133,6 +133,15 @@ AC_ARG_ENABLE([all-handlers],
               ],
               [])
 
+AC_ARG_ENABLE([all-io],
+              [AS_HELP_STRING([--disable-all-io],
+                              [Disable building all io (except those manually enabled)])],
+              [
+               AS_IF([test "x$enable_io_oss" != "xyes"],
+                     [enable_io_oss=no])
+              ],
+              [])
+
 AC_ARG_ENABLE([all-js-modules],
               [AS_HELP_STRING([--enable-all-js-modules],
                               [Build all the JavaScript modules (instead of manually enabling them one by one)])],
@@ -645,6 +654,78 @@ PKG_CHECK_MODULES([EVENTS],
 
 
 ##
+# IO
+##
+
+PKG_CHECK_MODULES([IO],
+                  [
+                    glib-2.0 >= $glib_version
+                    jansson
+                    mxml
+                  ])
+
+AC_ARG_ENABLE([io-oss],
+              [AS_HELP_STRING([--disable-io-oss],
+                              [Disable oss io])],
+              [AS_IF([test "x$enable_io_oss" != "xyes"],
+                     [enable_io_oss=no])],
+              [enable_io_oss=yes])
+
+PKG_CHECK_MODULES([CURL],
+                  [libcurl],
+                  [
+                    AS_IF([test "x$enable_io_oss" = "xmaybe"],
+                          [enable_io_oss=yes])
+                  ],
+                  [
+                    AS_IF([test "x$enable_io_oss" = "xyes"],
+                          [AC_MSG_ERROR([libxurl not found. See README.md for installation instructions or use --disable-io-oss])])
+                  ])
+AC_SUBST([CURL_CFLAGS])
+AC_SUBST([CURL_LIBS])
+
+PKG_CHECK_MODULES([APR],
+                  [apr-1],
+                  [
+                    AS_IF([test "x$enable_io_oss" = "xmaybe"],
+                          [enable_io_oss=yes])
+                  ],
+                  [
+                    AS_IF([test "x$enable_io_oss" = "xyes"],
+                          [AC_MSG_ERROR([libapr not found. See README.md for installation instructions or use --disable-io-oss])])
+                  ])
+AC_SUBST([APR_CFLAGS])
+AC_SUBST([APR_LIBS])
+
+PKG_CHECK_MODULES([APRUTIL],
+                  [apr-util-1],
+                  [
+                    AS_IF([test "x$enable_io_oss" = "xmaybe"],
+                          [enable_io_oss=yes])
+                  ],
+                  [
+                    AS_IF([test "x$enable_io_oss" = "xyes"],
+                          [AC_MSG_ERROR([libaprutil not found. See README.md for installation instructions or use --disable-io-oss])])
+                  ])
+AC_SUBST([APRUTIL_CFLAGS])
+AC_SUBST([APRUTIL_LIBS])
+
+PKG_CHECK_MODULES([MXML],
+                  [mxml],
+                  [
+                    AS_IF([test "x$enable_io_oss" = "xmaybe"],
+                          [enable_io_oss=yes])
+                  ],
+                  [
+                    AS_IF([test "x$enable_io_oss" = "xyes"],
+                          [AC_MSG_ERROR([libmxml not found. See README.md for installation instructions or use --disable-io-oss])])
+                  ])
+AC_SUBST([MXML_CFLAGS])
+AC_SUBST([MXML_LIBS])
+
+AM_CONDITIONAL([ENABLE_IO_OSS], [test "x$enable_io_oss" = "xyes"])
+
+##
 # JavaScript modules
 ##
 
@@ -822,6 +903,10 @@ AM_COND_IF([ENABLE_SAMPLEEVH],
 AM_COND_IF([ENABLE_RABBITMQEVH],
 	[echo "    RabbitMQ event handler:yes"],
 	[echo "    RabbitMQ event handler:no"])
+echo "IO:"
+AM_COND_IF([ENABLE_IO_OSS],
+  [echo "    io oss:  yes"],
+  [echo "    io oss:  no"])
 AM_COND_IF([ENABLE_JAVASCRIPT_MODULES], [
 	echo "JavaScript modules:        yes"
 	echo "    Using npm:             $NPM"
