@@ -40,10 +40,11 @@ struct  _Pb__Command
   int32_t w;
   int32_t color;
   int64_t user;
+  int64_t pathid;
 };
 #define PB__COMMAND__INIT \
  { PROTOBUF_C_MESSAGE_INIT (&pb__command__descriptor) \
-    , 0, 0, 0, 0, 0, 0, 0 }
+    , 0, 0, 0, 0, 0, 0, 0, 0 }
 
 
 struct  _Pb__Point
