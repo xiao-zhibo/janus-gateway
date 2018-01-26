@@ -19,6 +19,7 @@ typedef enum
     KLDrawCommandType_BeginEraser,
     KLDrawCommandType_Erasing,
     KLDrawCommandType_EndEraser,
+    KLDrawCommandType_ErasePath,
 } KLDrawCommandType;
 
 typedef enum {
