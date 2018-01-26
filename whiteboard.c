@@ -47,22 +47,22 @@ int 	 janus_whiteboard_add_scene_l(janus_whiteboard *whiteboard, Pb__Scene *newS
 static janus_io *janus_oss_io = NULL;
 
 void oss_init(const char *io_folder) {
-	void *io = dlopen(io_folder, RTLD_NOW | RTLD_GLOBAL);
-	if (!io) {
-		JANUS_LOG(LOG_ERR, "open janus oss error: %s\n", dlerror());
-	} else {
-		create_i *create = (create_i*) dlsym(io, "create");
-		const char *dlsym_error = dlerror();
-		if (dlsym_error) {
-			JANUS_LOG(LOG_ERR, "\tCouldn't load symbol 'create': %s\n", dlsym_error);
-		}
-		janus_oss_io = create();
-		if (!janus_oss_io) {
-			JANUS_LOG(LOG_ERR, "create janus oss io error.\n");
-		}
-		janus_oss_io->init("");
-		JANUS_LOG(LOG_ERR, "oss get_api_compatibility: %d\n", janus_oss_io->get_api_compatibility());
-	}
+	// void *io = dlopen(io_folder, RTLD_NOW | RTLD_GLOBAL);
+	// if (!io) {
+	// 	JANUS_LOG(LOG_ERR, "open janus oss error: %s\n", dlerror());
+	// } else {
+	// 	create_i *create = (create_i*) dlsym(io, "create");
+	// 	const char *dlsym_error = dlerror();
+	// 	if (dlsym_error) {
+	// 		JANUS_LOG(LOG_ERR, "\tCouldn't load symbol 'create': %s\n", dlsym_error);
+	// 	}
+	// 	janus_oss_io = create();
+	// 	if (!janus_oss_io) {
+	// 		JANUS_LOG(LOG_ERR, "create janus oss io error.\n");
+	// 	}
+	// 	janus_oss_io->init("");
+	// 	JANUS_LOG(LOG_ERR, "oss get_api_compatibility: %d\n", janus_oss_io->get_api_compatibility());
+	// }
 }
 
 janus_whiteboard *janus_whiteboard_create_with_oss(const char *oss_path, const char *dir, const char *filename);
