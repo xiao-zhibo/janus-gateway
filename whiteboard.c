@@ -106,8 +106,7 @@ janus_whiteboard *janus_whiteboard_create_with_oss(const char *oss_path, const c
 		JANUS_LOG(LOG_WARN, "new packet io info!\n");
 		whiteboard->packet_info = janus_io_info_new(packet_path);
 		JANUS_LOG(LOG_WARN, "whiteboard io info new success!\n");
-
-
+		
 		JANUS_LOG(LOG_WARN, "init scene io info!\n");
 		if (janus_oss_io && janus_oss_io->io_info_create(whiteboard->scene_info) < 0) {
 			JANUS_LOG(LOG_WARN, "init scene io info error!\n");

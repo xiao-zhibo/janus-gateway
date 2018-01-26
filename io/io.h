@@ -50,6 +50,9 @@ typedef struct janus_io_info {
 	void *io_handle;
 	
 	char *path;
+	char *bucket;
+	char *endpoint;
+	char *object;
 } janus_io_info;
 
 /*! \brief The io plugin session and callbacks interface */
