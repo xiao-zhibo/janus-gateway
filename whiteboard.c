@@ -302,6 +302,7 @@ int janus_whiteboard_write_packet_to_file_l(void* src, size_t len, FILE *dst_fil
 		}
 		total -= ret;
 	}
+	fflush(dst_file);
 	return 0;
 }
 
