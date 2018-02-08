@@ -295,9 +295,11 @@ int janus_whiteboard_write_packet_to_file_l(void* src, size_t len, FILE *dst_fil
 	while (total > 0) {
 		ret = fwrite(src + (len-total), sizeof(unsigned char), total, dst_file);
 		if (ret >= total) {
+			fflush(dst_file);
 			return 0;
 		} else if (ret <= 0) {
 			JANUS_LOG(LOG_ERR, "Error saving packet...\n");//应该表明写入了多少
+			fflush(dst_file);
 			return -1;
 		}
 		total -= ret;
@@ -1123,25 +1125,25 @@ int janus_whiteboard_close(janus_whiteboard *whiteboard) {
 		JANUS_LOG(LOG_INFO, "whiteboard scene file is %zu bytes: %s\n", fsize, whiteboard->filename);
 	}
 
-	if (whiteboard->scene_info) {
+	if (janus_oss_io && whiteboard->scene_info) {
 		janus_oss_io->io_info_close(whiteboard->scene_info);
 		janus_io_info_destroy(whiteboard->scene_info);
 		whiteboard->scene_info = NULL;
 		JANUS_LOG(LOG_INFO, "close scene info to oss.");
 	}
-	if (whiteboard->header_info) {
+	if (janus_oss_io && whiteboard->header_info) {
 		janus_oss_io->io_info_close(whiteboard->header_info);
 		janus_io_info_destroy(whiteboard->header_info);
 		whiteboard->header_info = NULL;
 		JANUS_LOG(LOG_INFO, "close header info to oss.");
 	}
-	if (whiteboard->page_info) {
+	if (janus_oss_io && whiteboard->page_info) {
 		janus_oss_io->io_info_close(whiteboard->page_info);
 		janus_io_info_destroy(whiteboard->page_info);
 		whiteboard->page_info = NULL;
 		JANUS_LOG(LOG_INFO, "close page info to oss.");
 	}
-	if (whiteboard->packet_info) {
+	if (janus_oss_io && whiteboard->packet_info) {
 		janus_oss_io->io_info_close(whiteboard->packet_info);
 		janus_io_info_destroy(whiteboard->packet_info);
 		whiteboard->packet_info = NULL;
