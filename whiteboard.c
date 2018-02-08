@@ -93,7 +93,7 @@ janus_whiteboard *janus_whiteboard_create_with_oss(const char *oss_path, const c
 		memset(page_path,  0, length);
 		memset(packet_path,  0, length);
 		g_snprintf(packet_path,   length, "%s/%s.data", oss_path, filename);
-		g_snprintf(header_path, length, "%s/%s.header", oss_path, filename);
+		g_snprintf(header_path, length, "%s/%s.head", oss_path, filename);
 		g_snprintf(scene_path, length, "%s/%s.scene", oss_path, filename);
 		g_snprintf(page_path, length, "%s/%s.page", oss_path, filename);
 
@@ -414,7 +414,7 @@ int janus_whiteboard_parse_or_create_header_l(janus_whiteboard *whiteboard) {
 					g_free(*target_keyframe);
 				}
 				*target_keyframe = next;
-				if (package->scene > tmp_scene->page_keyframe_maxnum) {
+				if (package->page > tmp_scene->page_keyframe_maxnum) {
 					tmp_scene->page_keyframe_maxnum = package->page + 1;//scene 从 0 开始
 				}
 
@@ -464,6 +464,7 @@ int janus_whiteboard_parse_or_create_header_l(janus_whiteboard *whiteboard) {
 		if (tmp_pkt != NULL) {
 			/* package 的 timestamp 是以毫秒为单位的持续时间，不是日期的时间戳 */
 			whiteboard->scene = tmp_pkt->scene;
+			whiteboard->page = tmp_pkt->page;
 			whiteboard->start_timestamp = janus_whiteboard_get_current_time_l() - tmp_pkt->timestamp;
 		} else {
 			int64_t last_timestamp = whiteboard->scenes[whiteboard->scene]->page_keyframes[whiteboard->page]->timestamp;
