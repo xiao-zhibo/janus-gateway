@@ -327,6 +327,7 @@ int janus_whiteboard_init_scene_from_file_l(janus_whiteboard *whiteboard) {
 	fseek(whiteboard->scene_file, 0, SEEK_SET);
 	size_t pkt_len = 0;
 	while (fread(&pkt_len, sizeof(size_t), 1, whiteboard->scene_file) == 1) {
+		JANUS_LOG(LOG_INFO, "the scene package length: %d\n", pkt_len);
 		char *buffer = g_malloc0(pkt_len);
 		if (janus_whiteboard_read_packet_from_file_l(buffer, pkt_len, whiteboard->scene_file) < 0) {
 			JANUS_LOG(LOG_ERR, "Error happens when reading scene data from basefile: %s\n", whiteboard->filename);
@@ -346,6 +347,10 @@ int janus_whiteboard_init_scene_from_file_l(janus_whiteboard *whiteboard) {
 		j_scene->page_keyframes       			= g_malloc0(sizeof(Pb__KeyFrame*) * MAX_PACKET_CAPACITY);
 		j_scene->page_keyframe_maxnum 			= 0;
 		whiteboard->scenes[tmp_scene->index] 	= j_scene;
+		if (whiteboard->scene_num <= tmp_scene->index) {
+			whiteboard->scene_num = tmp_scene->index + 1;
+		}
+		JANUS_LOG(LOG_INFO, "janus scene: %s, %d\n", j_scene->source_url, j_scene->page_num);
 
 		pb__scene__free_unpacked(tmp_scene, NULL);
 		g_free(buffer);
@@ -376,6 +381,7 @@ int janus_whiteboard_parse_or_create_header_l(janus_whiteboard *whiteboard) {
 	size_t pkt_len;
 	while(fread(&keyframe_len, sizeof(size_t), 1, whiteboard->header_file) == 1) {
 		char *buffer = g_malloc0(keyframe_len);
+		JANUS_LOG(LOG_WARN, "Parse whiteboard keyframe(%s): %d.\n", whiteboard->filename, keyframe_len);
 		if (janus_whiteboard_read_packet_from_file_l(buffer, keyframe_len, whiteboard->header_file) < 0) {
 			JANUS_LOG(LOG_ERR, "Error happens when reading keyframe index packet from basefile: %s\n", whiteboard->filename);
 			g_free(buffer);
@@ -383,6 +389,7 @@ int janus_whiteboard_parse_or_create_header_l(janus_whiteboard *whiteboard) {
 		}
 		Pb__KeyFrame *tmp_keyframe = pb__key_frame__unpack(NULL, keyframe_len, (const uint8_t*)buffer);
 		if (tmp_keyframe != NULL) {
+			JANUS_LOG(LOG_INFO, "%s scene(%d) page(%d) keyFrame offset: %d\n", whiteboard->filename, tmp_keyframe->scene, tmp_keyframe->page, tmp_keyframe->offset);
 			fseek(whiteboard->file, tmp_keyframe->offset, SEEK_SET);
 			if (fread(&pkt_len, sizeof(size_t), 1, whiteboard->file) == 1) {
 				char *buf = g_malloc0(pkt_len);
@@ -471,6 +478,7 @@ int janus_whiteboard_parse_or_create_header_l(janus_whiteboard *whiteboard) {
 			whiteboard->start_timestamp = janus_whiteboard_get_current_time_l() - last_timestamp;
 		}
 	} else {
+		JANUS_LOG(LOG_WARN, "Get an invalid packet when parse header\n");
 		whiteboard->start_timestamp = janus_whiteboard_get_current_time_l();
 	}
 
@@ -529,11 +537,12 @@ int janus_whiteboard_add_scene_l(janus_whiteboard *whiteboard, Pb__Scene *newSce
 	} else {
 		janus_scene *tmp_scene = whiteboard->scenes[newScene->index];
 		if (tmp_scene) {
-			if (tmp_scene->page_num > 0 && tmp_scene->page_keyframes) {
-				g_free(tmp_scene->page_keyframes);
-				g_free(tmp_scene->source_url);
-			}
-			g_free(tmp_scene);
+			// if (tmp_scene->page_num > 0 && tmp_scene->page_keyframes) {
+			// 	g_free(tmp_scene->page_keyframes);
+			// 	g_free(tmp_scene->source_url);
+			// }
+			// g_free(tmp_scene);
+			return -1;
 		}
 		whiteboard->scenes[newScene->index] = j_scene;
 	}
@@ -1328,7 +1337,7 @@ int janus_whiteboard_free(janus_whiteboard *whiteboard) {
 	if(!whiteboard)
 		return -1;
 	janus_whiteboard_close(whiteboard);
-	janus_whiteboard_generate_and_save_l(whiteboard);
+	// janus_whiteboard_generate_and_save_l(whiteboard);
 	janus_mutex_lock_nodebug(&whiteboard->mutex);
 	g_free(whiteboard->dir);
 	whiteboard->dir = NULL;
