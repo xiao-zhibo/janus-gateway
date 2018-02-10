@@ -385,6 +385,10 @@ int janus_whiteboard_parse_or_create_header_l(janus_whiteboard *whiteboard) {
 	// 尝试解析数据到whiteboard->header，如果不成功则执行创建操作
 	size_t pkt_len;
 	while(fread(&keyframe_len, sizeof(size_t), 1, whiteboard->header_file) == 1) {
+		if (keyframe_len > MAX_PACKET_CAPACITY || keyframe_len < 0) {
+			JANUS_LOG(LOG_ERR, "key frame len error: %d", keyframe_len);
+			continue;
+		}
 		char *buffer = g_malloc0(keyframe_len);
 		JANUS_LOG(LOG_WARN, "Parse whiteboard keyframe(%s): %d.\n", whiteboard->filename, keyframe_len);
 		if (janus_whiteboard_read_packet_from_file_l(buffer, keyframe_len, whiteboard->header_file) < 0) {
@@ -401,8 +405,9 @@ int janus_whiteboard_parse_or_create_header_l(janus_whiteboard *whiteboard) {
 				continue;
 			}
 			if (fread(&pkt_len, sizeof(size_t), 1, whiteboard->file) == 1) {
-				if (pkt_len > MAX_PACKET_CAPACITY) {
-					JANUS_LOG(LOG_ERR, "pakcage len too long: %d", pkt_len);
+				JANUS_LOG(LOG_INFO, "key pakcage len: %d\n", pkt_len);
+				if (pkt_len > MAX_PACKET_CAPACITY || pkt_len < 0) {
+					JANUS_LOG(LOG_ERR, "key pakcage len too long: %d\n", pkt_len);
 					continue;
 				}
 				char *buf = g_malloc0(pkt_len);
@@ -459,6 +464,11 @@ int janus_whiteboard_parse_or_create_header_l(janus_whiteboard *whiteboard) {
 		fseek(whiteboard->file, whiteboard->scenes[whiteboard->scene]->page_keyframes[whiteboard->page]->offset, SEEK_SET);
 		Pb__Package *tmp_pkt = NULL;
 		while(fread(&pkt_len, sizeof(pkt_len), 1, whiteboard->file) == 1) {
+			JANUS_LOG(LOG_INFO, "pakcage len: %d\n", pkt_len);
+			if (pkt_len > MAX_PACKET_CAPACITY || pkt_len < 0) {
+				JANUS_LOG(LOG_ERR, "pakcage len too long: %d\n", pkt_len);
+				break;
+			}
 			char *buffer = g_malloc0(pkt_len);
 			if (buffer == NULL) {
 				JANUS_LOG(LOG_ERR, "Out of memory when alloc %zu bytes.\n", pkt_len);
@@ -787,6 +797,11 @@ int janus_whiteboard_scene_page_data_l(janus_whiteboard *whiteboard, int scene, 
 	size_t pkt_len, out_len = 0;
 
 	while(fread(&pkt_len, sizeof(size_t), 1, whiteboard->file) == 1) {
+		JANUS_LOG(LOG_INFO, "pakcage len: %d\n", pkt_len);
+		if (pkt_len > MAX_PACKET_CAPACITY || pkt_len < 0) {
+			JANUS_LOG(LOG_ERR, "pakcage len too long: %d\n", pkt_len);
+			break;
+		}
 		char *buffer = g_malloc0(pkt_len);
 		if (janus_whiteboard_read_packet_from_file_l(buffer, pkt_len, whiteboard->file) < 0) {
 			JANUS_LOG(LOG_ERR, "Error happens when reading scene data packet from basefile: %s\n", whiteboard->filename);
