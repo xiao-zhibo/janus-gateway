@@ -372,10 +372,15 @@ int janus_whiteboard_parse_or_create_header_l(janus_whiteboard *whiteboard) {
 		return -1;
 	}
 
+	int ret = 0;
 	whiteboard->page  = 0;
 	whiteboard->scene = 0;
 	size_t keyframe_len = 0;
-	fseek(whiteboard->header_file, 0, SEEK_SET);
+	ret = fseek(whiteboard->header_file, 0, SEEK_SET);
+	if (ret < 0) {
+		JANUS_LOG(LOG_ERR, "seek header file error.\n");
+		return -1;
+	}
 
 	// 尝试解析数据到whiteboard->header，如果不成功则执行创建操作
 	size_t pkt_len;
@@ -390,8 +395,16 @@ int janus_whiteboard_parse_or_create_header_l(janus_whiteboard *whiteboard) {
 		Pb__KeyFrame *tmp_keyframe = pb__key_frame__unpack(NULL, keyframe_len, (const uint8_t*)buffer);
 		if (tmp_keyframe != NULL) {
 			JANUS_LOG(LOG_INFO, "%s scene(%d) page(%d) keyFrame offset: %d\n", whiteboard->filename, tmp_keyframe->scene, tmp_keyframe->page, tmp_keyframe->offset);
-			fseek(whiteboard->file, tmp_keyframe->offset, SEEK_SET);
+			ret = fseek(whiteboard->file, tmp_keyframe->offset, SEEK_SET);
+			if (ret < 0) {
+				JANUS_LOG(LOG_ERR, "seek file keyframe offset error.\n");
+				continue;
+			}
 			if (fread(&pkt_len, sizeof(size_t), 1, whiteboard->file) == 1) {
+				if (pkt_len > MAX_PACKET_CAPACITY) {
+					JANUS_LOG(LOG_ERR, "pakcage len too long: %d", pkt_len);
+					continue;
+				}
 				char *buf = g_malloc0(pkt_len);
 				if (janus_whiteboard_read_packet_from_file_l(buf, pkt_len, whiteboard->file) < 0) {
 					JANUS_LOG(LOG_ERR, "Error happens when reading scene page data packet from basefile: %s\n", whiteboard->filename);
