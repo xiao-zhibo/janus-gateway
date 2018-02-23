@@ -560,16 +560,17 @@ int janus_whiteboard_add_scene_l(janus_whiteboard *whiteboard, Pb__Scene *newSce
 	} else {
 		janus_scene *tmp_scene = whiteboard->scenes[newScene->index];
 		if (tmp_scene) {
-			if (strcmp(tmp_scene->source_url, j_scene->source_url) == 0) {
-				g_free(j_scene->page_keyframes);
-				g_free(j_scene);
-				return -1;
-			}
-			if (tmp_scene->page_num > 0 && tmp_scene->page_keyframes) {
-				g_free(tmp_scene->page_keyframes);
-				// g_free(tmp_scene->source_url);
-			}
-			g_free(tmp_scene);
+			// if (strcmp(tmp_scene->source_url, j_scene->source_url) == 0) {
+			// 	g_free(j_scene->page_keyframes);
+			// 	g_free(j_scene);
+			// 	return -1;
+			// }
+			// if (tmp_scene->page_num > 0 && tmp_scene->page_keyframes) {
+			// 	g_free(tmp_scene->page_keyframes);
+			// 	// g_free(tmp_scene->source_url);
+			// }
+			// g_free(tmp_scene);
+			return -1;
 		}
 		whiteboard->scenes[newScene->index] = j_scene;
 	}
