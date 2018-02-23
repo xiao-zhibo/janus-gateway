@@ -439,7 +439,7 @@ int janus_whiteboard_parse_or_create_header_l(janus_whiteboard *whiteboard) {
 					g_free(*target_keyframe);
 				}
 				*target_keyframe = next;
-				if (package->page > tmp_scene->page_keyframe_maxnum) {
+				if (package->page >= tmp_scene->page_keyframe_maxnum) {
 					tmp_scene->page_keyframe_maxnum = package->page + 1;//scene 从 0 开始
 				}
 
@@ -560,12 +560,16 @@ int janus_whiteboard_add_scene_l(janus_whiteboard *whiteboard, Pb__Scene *newSce
 	} else {
 		janus_scene *tmp_scene = whiteboard->scenes[newScene->index];
 		if (tmp_scene) {
-			// if (tmp_scene->page_num > 0 && tmp_scene->page_keyframes) {
-			// 	g_free(tmp_scene->page_keyframes);
-			// 	g_free(tmp_scene->source_url);
-			// }
-			// g_free(tmp_scene);
-			return -1;
+			if (strcmp(tmp_scene->source_url, j_scene->source_url) == 0) {
+				g_free(j_scene->page_keyframes);
+				g_free(j_scene);
+				return -1;
+			}
+			if (tmp_scene->page_num > 0 && tmp_scene->page_keyframes) {
+				g_free(tmp_scene->page_keyframes);
+				// g_free(tmp_scene->source_url);
+			}
+			g_free(tmp_scene);
 		}
 		whiteboard->scenes[newScene->index] = j_scene;
 	}
@@ -829,6 +833,17 @@ int janus_whiteboard_scene_page_data_l(janus_whiteboard *whiteboard, int scene, 
 
 	fseek(whiteboard->file, 0, SEEK_END);
 	return out_len;
+}
+
+int janus_whiteboard_have_keyframe_l(janus_whiteboard *whiteboard, int scene, int page) {
+	janus_scene *scene_data = whiteboard->scenes[scene];
+	if (scene_data) {
+		Pb__KeyFrame *keyFrame = scene_data->page_keyframes[page];
+		if (keyFrame != NULL) {
+			return 1;
+		}
+	}
+	return 0;
 }
 
 int janus_whiteboard_on_receive_keyframe_l(janus_whiteboard *whiteboard, Pb__Package *package) {
@@ -1101,7 +1116,7 @@ janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboa
 		if (whiteboard->scene_page_package_num == 0) {
 			janus_whiteboard_on_receive_keyframe_l(whiteboard, package);
 		}
-	} else if (whiteboard->scenes[package->scene] && whiteboard->scenes[package->scene]->page_keyframe_maxnum == 0) {
+	} else if (!janus_whiteboard_have_keyframe_l(whiteboard, package->scene, package->page)) {
 		// 修复第一个包不是关键帧的问题
 		janus_whiteboard_on_receive_keyframe_l(whiteboard, package);
 	}
