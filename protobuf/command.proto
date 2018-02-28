@@ -9,6 +9,7 @@ message Command {
     int32 w = 5;
     int32 color = 6;
     int64 user = 7;
+    int64 pathId = 8;
 }
 
 message Point {

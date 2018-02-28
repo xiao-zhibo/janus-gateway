@@ -258,6 +258,8 @@ static struct janus_json_parameter create_parameters[] = {
 	{"permanent", JANUS_JSON_BOOL, 0},
 	{"notify_joining", JANUS_JSON_BOOL, 0},
 	{"oss_dir", JSON_STRING, 0},
+	{"whiteboard_dir", JSON_STRING, 0},
+	{"whiteboard_file", JSON_STRING, 0},
 };
 static struct janus_json_parameter edit_parameters[] = {
 	{"room", JSON_INTEGER, JANUS_JSON_PARAM_REQUIRED | JANUS_JSON_PARAM_POSITIVE},
@@ -272,6 +274,8 @@ static struct janus_json_parameter edit_parameters[] = {
 	{"new_publishers", JSON_INTEGER, JANUS_JSON_PARAM_POSITIVE},
 	{"permanent", JANUS_JSON_BOOL, 0},
 	{"oss_dir", JSON_STRING, 0},
+	{"whiteboard_dir", JSON_STRING, 0},
+	{"whiteboard_file", JSON_STRING, 0},
 };
 static struct janus_json_parameter room_parameters[] = {
 	{"room", JSON_INTEGER, JANUS_JSON_PARAM_REQUIRED | JANUS_JSON_PARAM_POSITIVE}
@@ -592,6 +596,8 @@ typedef struct janus_videoroom {
 	GHashTable *allowed;		/* Map of participants (as tokens) allowed to join */
 	janus_mutex participants_mutex;/* Mutex to protect room properties */
 	char *oss_dir;
+	char *whiteboard_dir;
+	char *whiteboard_filename;
 	janus_whiteboard *whiteboard;/* The Janus recorder instance for this room's data, if enabled */
 	gboolean notify_joining;	/* Whether an event is sent to notify all participants if a new participant joins the room */
 } janus_videoroom;
@@ -973,6 +979,9 @@ int janus_videoroom_init(janus_callbacks *callback, const char *config_path) {
 			janus_config_item *notify_joining = janus_config_get_item(cat, "notify_joining");
 			janus_config_item *record = janus_config_get_item(cat, "record");
 			janus_config_item *rec_dir = janus_config_get_item(cat, "rec_dir");
+			janus_config_item *oss_dir = janus_config_get_item(cat, "oss_dir");
+			janus_config_item *whiteboard_dir = janus_config_get_item(cat, "whiteboard_dir");
+			janus_config_item *whiteboard_file = janus_config_get_item(cat, "whiteboard_file");
 			/* Create the video room */
 			janus_videoroom *videoroom = g_malloc0(sizeof(janus_videoroom));
 			videoroom->room_id = g_ascii_strtoull(cat->name, NULL, 0);
@@ -1094,6 +1103,15 @@ int janus_videoroom_init(janus_callbacks *callback, const char *config_path) {
 			if(rec_dir && rec_dir->value) {
 				videoroom->rec_dir = g_strdup(rec_dir->value);
 			}
+			if(oss_dir && oss_dir->value) {
+				videoroom->oss_dir = g_strdup(oss_dir->value);
+			}
+			if (whiteboard_dir && whiteboard_dir->value) {
+				videoroom->whiteboard_dir = g_strdup(whiteboard_dir);
+			}
+			if(whiteboard_file && whiteboard_file->value) {
+				videoroom->whiteboard_filename = g_strdup(whiteboard_file->value);
+			}
 			/* By default, the videoroom plugin does not notify about participants simply joining the room.
 			   It only notifies when the participant actually starts publishing media. */
 			videoroom->notify_joining = FALSE;
@@ -1142,12 +1160,12 @@ int janus_videoroom_init(janus_callbacks *callback, const char *config_path) {
 			}
 
 			// FIXME:Rison 需做点什么方便白板与声音同步？
-			if (videoroom->whiteboard == NULL) {
-				char filename[255];
-				JANUS_LOG(LOG_INFO, "--->videoRoom:%"SCNu64" is preparing to create a whiteboard recorder.\n", videoroom->room_id);
-				gint64 now = janus_get_real_time();
-				g_snprintf(filename, 255, "videoroom-%"SCNu64"-%"SCNi64"-whiteboard", videoroom->room_id, now);
-				videoroom->whiteboard = janus_whiteboard_create(videoroom->rec_dir, filename, 0);
+			if (videoroom->whiteboard == NULL && videoroom->whiteboard_dir && videoroom->whiteboard_filename) {
+				// char filename[255];
+				// JANUS_LOG(LOG_INFO, "--->videoRoom:%"SCNu64" is preparing to create a whiteboard recorder.\n", videoroom->room_id);
+				// gint64 now = janus_get_real_time();
+				// g_snprintf(filename, 255, "videoroom-%"SCNu64"-%"SCNi64"-whiteboard", videoroom->room_id, now);
+				videoroom->whiteboard = janus_whiteboard_create(videoroom->oss_dir, videoroom->whiteboard_dir, videoroom->whiteboard_filename);
 				if(videoroom->whiteboard == NULL) {
 					JANUS_LOG(LOG_ERR, "Couldn't open an data recording file for this room! Try to create next time if another audio joins.\n");
 				}
@@ -1689,6 +1707,9 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 		json_t *record = json_object_get(root, "record");
 		json_t *rec_dir = json_object_get(root, "rec_dir");
 		json_t *permanent = json_object_get(root, "permanent");
+		json_t *oss_dir = json_object_get(root, "oss_dir");
+		json_t *whiteboard_dir = json_object_get(root, "whiteboard_dir");
+		json_t *whiteboard_filename = json_object_get(root, "whiteboard_file");
 		if(allowed) {
 			/* Make sure the "allowed" array only contains strings */
 			gboolean ok = TRUE;
@@ -1861,6 +1882,15 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 		if(rec_dir) {
 			videoroom->rec_dir = g_strdup(json_string_value(rec_dir));
 		}
+		if (oss_dir) {
+			videoroom->oss_dir = g_strdup(json_string_value(oss_dir));
+		}
+		if (whiteboard_dir) {
+			videoroom->whiteboard_dir = g_strdup(json_string_value(whiteboard_dir));
+		}
+		if (whiteboard_filename) {
+			videoroom->whiteboard_filename = g_strdup(json_string_value(whiteboard_filename));
+		}
 		videoroom->destroyed = 0;
 		janus_mutex_init(&videoroom->participants_mutex);
 		videoroom->participants = g_hash_table_new_full(g_int64_hash, g_int64_equal, (GDestroyNotify)g_free, NULL);
@@ -1880,12 +1910,8 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 		}
 
 		// FIXME:Rison 需做点什么方便白板与声音同步？
-		if (videoroom->whiteboard == NULL) {
-			char filename[255];
-			JANUS_LOG(LOG_INFO, "--->videoRoom:%"SCNu64" is preparing to create a whiteboard recorder.\n", videoroom->room_id);
-			gint64 now = janus_get_real_time();
-			g_snprintf(filename, 255, "videoroom-%"SCNu64"-%"SCNi64"-whiteboard", videoroom->room_id, now);
-			videoroom->whiteboard = janus_whiteboard_create(videoroom->rec_dir, filename, 0);
+		if (videoroom->whiteboard == NULL && videoroom->whiteboard_dir && videoroom->whiteboard_filename) {
+			videoroom->whiteboard = janus_whiteboard_create(videoroom->oss_dir, videoroom->whiteboard_dir, videoroom->whiteboard_filename);
 			if(videoroom->whiteboard == NULL) {
 				JANUS_LOG(LOG_ERR, "Couldn't open an data recording file for this room! Try to create next time if another audio joins.\n");
 			}
@@ -2989,6 +3015,9 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 
 				json_t *json_resource = json_object_get(scene, "resource");
 				char *resource = g_strdup(json_string_value(json_resource));
+				if (json_resource == NULL) {
+					resource = "";
+				}
 				json_t *json_page_count = json_object_get(scene, "page_count");
 				int page_count = json_integer_value(json_page_count);
 				json_t *json_scene_type = json_object_get(scene, "scene_type");
@@ -3106,6 +3135,25 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 			g_free(wret.command_buf);
 			wret.command_buf = NULL;
 			json_object_set_new(response, "index", json_integer(wret.ret));
+		} else if (cmd_type == KLPackageType_Init) {
+			json_t *oss_dir = json_object_get(root, "oss_dir");
+			json_t *whiteboard_dir = json_object_get(root, "whiteboard_dir");
+			json_t *whiteboard_filename = json_object_get(root, "whiteboard_file");
+			// if (!videoroom->whiteboard) {
+			// 	if (oss_dir) {
+			// 		videoroom->oss_dir = g_strdup(json_string_value(oss_dir));
+			// 	}
+			// 	if (whiteboard_dir) {
+			// 		videoroom->whiteboard_dir = g_strdup(json_string_value(whiteboard_dir));
+			// 	}
+			// 	if (whiteboard_filename) {
+			// 		videoroom->whiteboard_filename = g_strdup(json_string_value(whiteboard_filename));
+			// 	}
+			// 	videoroom->whiteboard = janus_whiteboard_create(videoroom->oss_dir, videoroom->whiteboard_dir, videoroom->whiteboard_filename);
+			// 	if(videoroom->whiteboard == NULL) {
+			// 		JANUS_LOG(LOG_ERR, "Couldn't open an data recording file for this room! Try to create next time if another audio joins.\n");
+			// 	}
+			// }
 		}
 
 		/* Prepare response */
@@ -3717,9 +3765,10 @@ static void janus_videoroom_recorder_create(janus_videoroom_participant *partici
 	}
 	// FIXME:Rison 需做点什么方便白板与声音同步？
 	if (participant->room->whiteboard == NULL) {
-		JANUS_LOG(LOG_INFO, "--->videoRoom:%"SCNu64" is preparing to create a whiteboard recorder.\n", participant->room->room_id);
-		g_snprintf(filename, 255, "videoroom-%"SCNu64"-%"SCNi64"-whiteboard", participant->room->room_id, now);
-		participant->room->whiteboard = janus_whiteboard_create(participant->room->rec_dir, filename, 0);
+		// JANUS_LOG(LOG_INFO, "--->videoRoom:%"SCNu64" is preparing to create a whiteboard recorder.\n", participant->room->room_id);
+		// g_snprintf(filename, 255, "videoroom-%"SCNu64"-%"SCNi64"-whiteboard", participant->room->room_id, now);
+		janus_videoroom *videoroom = participant->room;
+		participant->room->whiteboard = janus_whiteboard_create(videoroom->oss_dir, videoroom->rec_dir, videoroom->whiteboard_filename);
 		if(participant->room->whiteboard == NULL) {
 			JANUS_LOG(LOG_ERR, "Couldn't open an data recording file for this room! Try to create next time if another audio joins.\n");
 		}

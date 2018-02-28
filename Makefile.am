@@ -17,7 +17,7 @@ AM_CFLAGS += -Wno-override-init  # we need this for JANUS_PLUGIN_INIT and JANUS_
 # some fairly big refactoring though, which can wait.
 # AM_CFLAGS += -Wshadow -Wstrict-aliasing=2
 
-AM_CFLAGS += -fstack-protector-all -g -ggdb -fPIC -rdynamic -pthread
+AM_CFLAGS += -fstack-protector-all -g -ggdb -fPIC -rdynamic -pthread -ldl -lm
 
 # FIXME: make docs work with distcheck
 DISTCHECK_CONFIGURE_FLAGS = --disable-docs --enable-post-processing
@@ -40,6 +40,9 @@ transportsheader_HEADERS = transports/transport.h
 eventsheaderdir = $(includedir)/janus/events
 eventsheader_HEADERS = events/eventhandler.h
 
+ioheaderdir = $(includedir)/janus/io
+ioheader_HEADERS = io/io.h
+
 confdir = $(sysconfdir)/janus
 conf_DATA = conf/janus.cfg.sample
 
@@ -54,6 +57,9 @@ transport_LTLIBRARIES = $(NULL)
 
 eventdir = $(libdir)/janus/events
 event_LTLIBRARIES = $(NULL)
+
+iodir = $(libdir)/janus/io
+io_LTLIBRARIES = $(NULL)
 
 SUBDIRS = html
 html_DATA = README.md
@@ -78,6 +84,7 @@ jsmodules_DATA = html/janus.js
 	    s|[@]plugindir[@]|$(plugindir)|;\
 	    s|[@]transportdir[@]|$(transportdir)|;\
 	    s|[@]eventdir[@]|$(eventdir)|;\
+	    s|[@]iodir[@]|$(iodir)|;\
 	    s|[@]recordingsdir[@]|$(recordingsdir)|;\
 	    s|[@]demosdir[@]|$(demosdir)|;\
 	    s|[@]streamdir[@]|$(streamdir)|" \
@@ -144,6 +151,8 @@ janus_SOURCES = \
 	plugins/plugin.h \
 	transports/transport.h \
 	events/eventhandler.h \
+	io/io.c \
+	io/io.h \
 	$(NULL)
 
 janus_CFLAGS = \
@@ -152,8 +161,8 @@ janus_CFLAGS = \
 	-DPLUGINDIR=\"$(plugindir)\" \
 	-DTRANSPORTDIR=\"$(transportdir)\" \
 	-DEVENTDIR=\"$(eventdir)\" \
+	-DIODIR=\"$(iodir)\" \
 	-DCONFDIR=\"$(confdir)\" \
-	$(BORINGSSL_CFLAGS) \
 	$(NULL)
 
 janus_LDADD = \
@@ -430,6 +439,29 @@ plugins_libjanus_textroom_la_LIBADD = $(plugins_libadd)
 conf_DATA += conf/janus.plugin.textroom.cfg.sample
 EXTRA_DIST += conf/janus.plugin.textroom.cfg.sample
 endif
+
+##
+# IO
+##
+
+io_cflags = \
+	$(AM_CFLAGS) \
+	$(IO_CFLAGS) \
+	$(NULL)
+
+io_libadd = \
+	$(IO_LIBS) \
+	$(NULL)
+
+if ENABLE_IO_OSS
+io_LTLIBRARIES += io/libjanus_oss.la
+io_libjanus_oss_la_SOURCES = io/janus_oss.c
+io_libjanus_oss_la_CFLAGS = -I /usr/include/curl/ -I /usr/include/apr-1.0/ -I /usr/apr/include/apr-1.0 -I /usr/include/glib-2.0 -I /usr/lib/x86_64-linux-gnu/glib-2.0/include -I /usr/local/include 
+io_libjanus_oss_la_LDFLAGS = -L/usr/lib -L/usr/local/lib -L/usr/lib/x86_64-linux-gnu -fPIC -shared -lm -lglib-2.0 -lpthread -loss_c_sdk  -lcurl  -lapr-1 -laprutil-1 -lmxml
+conf_DATA += conf/janus.io.oss.cfg.sample
+EXTRA_DIST += conf/janus.io.oss.cfg.sample
+endif
+
 
 ##
 # Post-processing

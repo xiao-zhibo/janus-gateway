@@ -50,6 +50,9 @@ typedef struct janus_io_info {
 	void *io_handle;
 	
 	char *path;
+	char *bucket;
+	char *endpoint;
+	char *object;
 } janus_io_info;
 
 /*! \brief The io plugin session and callbacks interface */
@@ -70,12 +73,14 @@ struct janus_io {
 	int (* const write_data)(janus_io_info *io, char *buf, size_t len);
 	int (* const read_data)(janus_io_info *io, char *buf);
 	int (* const read_data_range)(janus_io_info *io, char *buf, size_t start, size_t end);
+	int (* const read_data_to_file) (janus_io_info *io, const char *filename);
 
+	int (* const async_write_data) (janus_io_info *io, char *buf, size_t len);
 };
 
 janus_io_info *janus_io_info_new(const char *path);
 
-void janus_io_info_free(const janus_io_info *io_info);
+void janus_io_info_destroy(janus_io_info *io_info);
 
 /*! \brief The hook that transport plugins need to implement to be created from the gateway */
 typedef janus_io* create_i(void);

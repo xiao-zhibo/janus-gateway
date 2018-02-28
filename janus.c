@@ -3919,13 +3919,32 @@ gint main(int argc, char *argv[])
 		exit(1);
 	}
 
+	/* Load io module */
+	const char *path = IODIR;
+	item = janus_config_get_item_drilldown(config, "general", "io_folder");
+	if(item && item->value)
+		path = (char *)item->value;
+	JANUS_LOG(LOG_INFO, "Transport plugins folder: %s\n", path);
+	DIR *dir = opendir(path);
+	if(!dir) {
+		JANUS_LOG(LOG_FATAL, "\tCouldn't access transport plugins folder...\n");
+		exit(1);
+	}
+	char iopath[1024];
+	memset(iopath, 0, 1024);
+	g_snprintf(iopath, 1024, "%s/%s", path, "libjanus_oss.so");
+	JANUS_LOG(LOG_INFO, "Loading io %s...\n", iopath);
+	oss_init(iopath);
+	closedir(dir);
+
+
 	/* Load event handlers */
-	const char *path = EVENTDIR;
+	path = EVENTDIR;
 	item = janus_config_get_item_drilldown(config, "general", "events_folder");
 	if(item && item->value)
 		path = (char *)item->value;
 	JANUS_LOG(LOG_INFO, "Event handler plugins folder: %s\n", path);
-	DIR *dir = opendir(path);
+	dir = opendir(path);
 	if(!dir) {
 		/* Not really fatal, we don't care and go on anyway: event handlers are not fundamental */
 		JANUS_LOG(LOG_FATAL, "\tCouldn't access event handler plugins folder...\n");
@@ -4309,6 +4328,7 @@ gint main(int argc, char *argv[])
 	if(disabled_transports != NULL)
 		g_strfreev(disabled_transports);
 	disabled_transports = NULL;
+
 	/* Make sure at least a Janus API transport is available */
 	if(!janus_api_enabled) {
 		JANUS_LOG(LOG_FATAL, "No Janus API transport is available... enable at least one and restart Janus\n");

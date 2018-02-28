@@ -367,7 +367,7 @@ void   pb__header__free_unpacked
   assert(message->base.descriptor == &pb__header__descriptor);
   protobuf_c_message_free_unpacked ((ProtobufCMessage*)message, allocator);
 }
-static const ProtobufCFieldDescriptor pb__command__field_descriptors[7] =
+static const ProtobufCFieldDescriptor pb__command__field_descriptors[8] =
 {
   {
     "shape",
@@ -453,10 +453,23 @@ static const ProtobufCFieldDescriptor pb__command__field_descriptors[7] =
     0,             /* flags */
     0,NULL,NULL    /* reserved1,reserved2, etc */
   },
+  {
+    "pathId",
+    8,
+    PROTOBUF_C_LABEL_NONE,
+    PROTOBUF_C_TYPE_INT64,
+    0,   /* quantifier_offset */
+    offsetof(Pb__Command, pathid),
+    NULL,
+    NULL,
+    0,             /* flags */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
 };
 static const unsigned pb__command__field_indices_by_name[] = {
   1,   /* field[1] = cmd */
   5,   /* field[5] = color */
+  7,   /* field[7] = pathId */
   0,   /* field[0] = shape */
   6,   /* field[6] = user */
   4,   /* field[4] = w */
@@ -466,7 +479,7 @@ static const unsigned pb__command__field_indices_by_name[] = {
 static const ProtobufCIntRange pb__command__number_ranges[1 + 1] =
 {
   { 1, 0 },
-  { 0, 7 }
+  { 0, 8 }
 };
 const ProtobufCMessageDescriptor pb__command__descriptor =
 {
@@ -476,7 +489,7 @@ const ProtobufCMessageDescriptor pb__command__descriptor =
   "Pb__Command",
   "pb",
   sizeof(Pb__Command),
-  7,
+  8,
   pb__command__field_descriptors,
   pb__command__field_indices_by_name,
   1,  pb__command__number_ranges,
