@@ -560,21 +560,24 @@ int janus_whiteboard_add_scene_l(janus_whiteboard *whiteboard, Pb__Scene *newSce
 	} else {
 		janus_scene *tmp_scene = whiteboard->scenes[newScene->index];
 		if (tmp_scene) {
-			// if (strcmp(tmp_scene->source_url, j_scene->source_url) == 0) {
-			// 	g_free(j_scene->page_keyframes);
-			// 	g_free(j_scene);
-			// 	return -1;
-			// }
-			// if (tmp_scene->page_num > 0 && tmp_scene->page_keyframes) {
-			// 	g_free(tmp_scene->page_keyframes);
-			// 	// g_free(tmp_scene->source_url);
-			// }
-			// g_free(tmp_scene);
-			return -1;
+			JANUS_LOG(LOG_INFO, "source_url: %s, %s\n", tmp_scene->source_url, j_scene->source_url);
+			if (strcmp(tmp_scene->source_url, j_scene->source_url) == 0) {
+				g_free(j_scene->page_keyframes);
+				g_free(j_scene);
+				return -1;
+			}
+			if (tmp_scene->page_num > 0 && tmp_scene->page_keyframes) {
+				JANUS_LOG(LOG_INFO, "janus_whiteboard_add_scene_l 000000000000000\n");
+				g_free(tmp_scene->page_keyframes);
+				// g_free(tmp_scene->source_url);
+			}
+			JANUS_LOG(LOG_INFO, "janus_whiteboard_add_scene_l  11111111111111\n");
+			g_free(tmp_scene);
+			JANUS_LOG(LOG_INFO, "janus_whiteboard_add_scene_l  2222222222222\n");
 		}
 		whiteboard->scenes[newScene->index] = j_scene;
 	}
-
+	JANUS_LOG(LOG_INFO, "janus_whiteboard_add_scene_l  33333333333333\n");
 	/*! 将 keyframe 保存到文件 */
 	size_t length = pb__scene__get_packed_size(newScene);
 	void *buffer = g_malloc0(length);
@@ -582,7 +585,7 @@ int janus_whiteboard_add_scene_l(janus_whiteboard *whiteboard, Pb__Scene *newSce
 		JANUS_LOG(LOG_WARN, "Save scene data fail. Out of memory when allocating memory for tmp file buffer\n");
 		return -1;
 	}
-
+	JANUS_LOG(LOG_INFO, "janus_whiteboard_add_scene_l  44444444444444444\n");
 	pb__scene__pack(newScene, buffer);
 	fseek(whiteboard->scene_file, 0, SEEK_END);
 	size_t ret = fwrite(&length, sizeof(size_t), 1, whiteboard->scene_file);
@@ -594,6 +597,7 @@ int janus_whiteboard_add_scene_l(janus_whiteboard *whiteboard, Pb__Scene *newSce
 		JANUS_LOG(LOG_ERR, "Error happens when saving keyframe packet index to basefile: %s\n", whiteboard->filename);
 		return -1;
 	}
+	JANUS_LOG(LOG_INFO, "janus_whiteboard_add_scene_l  5555555555555\n");
 	return 1;
 }
 

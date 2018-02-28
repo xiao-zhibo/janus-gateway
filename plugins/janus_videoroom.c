@@ -3015,6 +3015,9 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 
 				json_t *json_resource = json_object_get(scene, "resource");
 				char *resource = g_strdup(json_string_value(json_resource));
+				if (json_resource == NULL) {
+					resource = "";
+				}
 				json_t *json_page_count = json_object_get(scene, "page_count");
 				int page_count = json_integer_value(json_page_count);
 				json_t *json_scene_type = json_object_get(scene, "scene_type");
