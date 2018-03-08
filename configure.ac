@@ -335,9 +335,9 @@ PKG_CHECK_MODULES([LIBCURL],
                     AS_IF(
                       [test "x$enable_turn_rest_api" != "xno"],
                       [
-                        # AC_DEFINE(HAVE_LIBCURL)
+                        AC_DEFINE(HAVE_LIBCURL)
                         JANUS_MANUAL_LIBS+=" -lcurl"
-                        # enable_turn_rest_api=yes
+                        enable_turn_rest_api=yes
                       ])
                     AS_IF([test "x$enable_sample_event_handler" != "xno"],
                       [
