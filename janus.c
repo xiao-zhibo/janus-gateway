@@ -3919,24 +3919,6 @@ gint main(int argc, char *argv[])
 		exit(1);
 	}
 
-	/* Load io module */
-	const char *path = IODIR;
-	item = janus_config_get_item_drilldown(config, "general", "io_folder");
-	if(item && item->value)
-		path = (char *)item->value;
-	JANUS_LOG(LOG_INFO, "Transport plugins folder: %s\n", path);
-	DIR *dir = opendir(path);
-	if(!dir) {
-		JANUS_LOG(LOG_FATAL, "\tCouldn't access transport plugins folder...\n");
-		exit(1);
-	}
-	char iopath[1024];
-	memset(iopath, 0, 1024);
-	g_snprintf(iopath, 1024, "%s/%s", path, "libjanus_oss.so");
-	JANUS_LOG(LOG_INFO, "Loading io %s...\n", iopath);
-	oss_init(iopath);
-	closedir(dir);
-
 
 	/* Load event handlers */
 	path = EVENTDIR;

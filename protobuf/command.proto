@@ -29,6 +29,9 @@ message Scene {
     string resource = 2;
     int32 pagecount = 3;
     int32 index = 4;
+    int32 pre_index = 5;
+    int32 next_index = 6;
+    bool  deleted = 7;
 }
 
 message Package {
