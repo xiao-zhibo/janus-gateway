@@ -3921,12 +3921,12 @@ gint main(int argc, char *argv[])
 
 
 	/* Load event handlers */
-	path = EVENTDIR;
+	const char *path = EVENTDIR;
 	item = janus_config_get_item_drilldown(config, "general", "events_folder");
 	if(item && item->value)
 		path = (char *)item->value;
 	JANUS_LOG(LOG_INFO, "Event handler plugins folder: %s\n", path);
-	dir = opendir(path);
+	DIR *dir = opendir(path);
 	if(!dir) {
 		/* Not really fatal, we don't care and go on anyway: event handlers are not fundamental */
 		JANUS_LOG(LOG_FATAL, "\tCouldn't access event handler plugins folder...\n");

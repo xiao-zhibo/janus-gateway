@@ -79,7 +79,7 @@ struct  _Pb__Scene
   char *resource;
   int32_t pagecount;
   int32_t index;
-  int32_t next_index;
+  int32_t position;
   protobuf_c_boolean deleted;
 };
 #define PB__SCENE__INIT \

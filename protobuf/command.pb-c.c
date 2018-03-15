@@ -675,12 +675,12 @@ static const ProtobufCFieldDescriptor pb__scene__field_descriptors[6] =
     0,NULL,NULL    /* reserved1,reserved2, etc */
   },
   {
-    "next_index",
+    "position",
     5,
     PROTOBUF_C_LABEL_NONE,
     PROTOBUF_C_TYPE_INT32,
     0,   /* quantifier_offset */
-    offsetof(Pb__Scene, next_index),
+    offsetof(Pb__Scene, position),
     NULL,
     NULL,
     0,             /* flags */
@@ -702,8 +702,8 @@ static const ProtobufCFieldDescriptor pb__scene__field_descriptors[6] =
 static const unsigned pb__scene__field_indices_by_name[] = {
   5,   /* field[5] = deleted */
   3,   /* field[3] = index */
-  4,   /* field[4] = next_index */
   2,   /* field[2] = pagecount */
+  4,   /* field[4] = position */
   1,   /* field[1] = resource */
   0,   /* field[0] = type */
 };

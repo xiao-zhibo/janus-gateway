@@ -42,7 +42,9 @@ typedef struct janus_scene {
 	char *source_url;
 	int page_num;
 	int type;
-	int index
+	int index;
+	int position;
+	gboolean deleted;
 
 	/*! 坐标存page, 指针指向相应的keyframe。用于快速定位筛选出符合的场景数据给回前端 */
 	Pb__KeyFrame **page_keyframes;
@@ -70,9 +72,7 @@ typedef struct janus_whiteboard {
 	/*! \brief whiteboard data file */
 	FILE *file;
 	
-	// janus_scene **scenes;
-	// int scene_num;
-	GList *scenes;
+	GHashTable *scenes;
 	// Pb__Package **scene_packages;
 	// int scene_package_num;
 	//! 坐标存scene, 指针指向相应的keyframe。用于快速定位筛选出符合的场景数据给回前端 
@@ -81,9 +81,9 @@ typedef struct janus_whiteboard {
 	int scene;
 	int page;
 
-	// Pb__Package **scene_page_packages;
-	// int scene_page_package_num;
-	GList *scene_page_packages;
+	Pb__Package **scene_page_packages;
+	int scene_page_package_num;
+	// GList *scene_page_packages;
 
 	int64_t start_timestamp;
 	
