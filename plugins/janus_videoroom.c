@@ -3057,7 +3057,7 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 					janus_mutex_unlock(&videoroom->participants_mutex);
 					JANUS_LOG(LOG_ERR, "add scene error: %d, %s\n", page_count, resource);
 					json_object_set_new(response, "videoroom", json_string("fail"));
-					goto plugin_response; 
+					continue;
 				}
 				JANUS_LOG(LOG_INFO, "DataChannel Return added scene command to participant: %d, %d\n", wret.command_len, wret.command_buf);
 
