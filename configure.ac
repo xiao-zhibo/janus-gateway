@@ -258,6 +258,7 @@ AC_CHECK_LIB([crypto],
              [RAND_egd],
              [AM_CONDITIONAL([LIBRESSL_DETECTED], false)],
              [AM_CONDITIONAL([LIBRESSL_DETECTED], true)]
+             )
 
 AC_SEARCH_LIBS([tls_config_set_ca_mem],[tls],
              [AM_CONDITIONAL([LIBRESSL_DETECTED], true)],

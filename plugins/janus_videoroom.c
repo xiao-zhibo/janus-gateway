@@ -729,6 +729,9 @@ static guint32 janus_videoroom_rtp_forwarder_add_helper(janus_videoroom_particip
 	int srtp_suite, const char *srtp_crypto,
 	int substream, gboolean is_video, gboolean is_data);
 
+static void janus_videoroom_relay_participant_packet(janus_videoroom_participant *participant, char *buf, janus_xiao_data_packet_header *header);
+static void janus_videoroom_relay_participant_packet2(janus_videoroom_participant *participant, janus_xiao_data_packet *xiao_packet);
+
 typedef struct janus_videoroom_listener {
 	janus_videoroom_session *session;
 	janus_videoroom *room;	/* Room */
