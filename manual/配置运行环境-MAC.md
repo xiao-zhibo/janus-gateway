@@ -1,6 +1,7 @@
-
 ##  安装基础环境
-``` brew update
+
+``` 
+    brew update
     #可能会遇到E rror: /usr/local is not writable. 运行命令即可 `sudo chown -R $(whoami) /usr/local`
     brew tap homebrew/boneyard
     brew install jansson libnice openssl libusrsctp libmicrohttpd libwebsockets cmake rabbitmq-c sofia-sip opus libogg glib pkg-config gengetopt autoconf automake libtool
@@ -8,7 +9,8 @@
 ```
 
 ##  编译usrsctp。【option】如果打算使用自行修改的 srsrtcp 的话，可以卸载上一步安装的libusrsrtcp，然后执行以下步骤
-``` cd usrsctp/usrsctplib
+``` 
+    cd usrsctp/usrsctplib
     ./bootstrap
     ./configure --prefix=/usr/local && make && sudo make install
 ```
@@ -24,7 +26,8 @@
 ```
 
 ##  手动安装 libsrtp
-``` wget https://github.com/cisco/libsrtp/archive/v2.0.0.tar.gz
+``` 
+    wget https://github.com/cisco/libsrtp/archive/v2.0.0.tar.gz
     tar xfv v2.0.0.tar.gz
     cd libsrtp-2.0.0
     ./configure --prefix=/usr/local
@@ -33,7 +36,8 @@
 ```
 
 ##  编译 janus
-``` sh autogen.sh
+``` 
+    sh autogen.sh
     PKG_CONFIG_PATH=/usr/local/pkgconfig
     ./configure --prefix=/usr/local/janus --disable-docs
     #开启post-processing要求安装ffmpeg。configure&make&make install
