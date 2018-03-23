@@ -358,12 +358,11 @@ char janus_whiteboard_read_packet_from_file(uint8_t **buf, size_t *len, FILE *sr
 	char *buffer = NULL;
 	size_t pkt_len = 0;
 	*buf = NULL;
-	JANUS_LOG(LOG_ERR, "reading packet........\n");
+
 	if(fread(&pkt_len, sizeof(size_t), 1, src_file) != 1 ) {
 		JANUS_LOG(LOG_ERR, "Error happens when reading data from file: %d\n", ferror(src_file));
 		return -1;
 	}
-	JANUS_LOG(LOG_ERR, "reading packet: %d\n", pkt_len);
 	if (pkt_len > 0 && pkt_len < MAX_PACKET_CAPACITY) {
 		buffer = g_malloc0(pkt_len);
 		if (janus_whiteboard_read_packet_from_file_l(buffer, pkt_len, src_file) < 0) {
