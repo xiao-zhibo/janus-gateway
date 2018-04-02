@@ -624,7 +624,7 @@ const ProtobufCMessageDescriptor pb__line__descriptor =
   (ProtobufCMessageInit) pb__line__init,
   NULL,NULL,NULL    /* reserved[123] */
 };
-static const ProtobufCFieldDescriptor pb__scene__field_descriptors[6] =
+static const ProtobufCFieldDescriptor pb__scene__field_descriptors[4] =
 {
   {
     "type",
@@ -674,43 +674,17 @@ static const ProtobufCFieldDescriptor pb__scene__field_descriptors[6] =
     0,             /* flags */
     0,NULL,NULL    /* reserved1,reserved2, etc */
   },
-  {
-    "position",
-    5,
-    PROTOBUF_C_LABEL_NONE,
-    PROTOBUF_C_TYPE_INT32,
-    0,   /* quantifier_offset */
-    offsetof(Pb__Scene, position),
-    NULL,
-    NULL,
-    0,             /* flags */
-    0,NULL,NULL    /* reserved1,reserved2, etc */
-  },
-  {
-    "deleted",
-    6,
-    PROTOBUF_C_LABEL_NONE,
-    PROTOBUF_C_TYPE_BOOL,
-    0,   /* quantifier_offset */
-    offsetof(Pb__Scene, deleted),
-    NULL,
-    NULL,
-    0,             /* flags */
-    0,NULL,NULL    /* reserved1,reserved2, etc */
-  },
 };
 static const unsigned pb__scene__field_indices_by_name[] = {
-  5,   /* field[5] = deleted */
   3,   /* field[3] = index */
   2,   /* field[2] = pagecount */
-  4,   /* field[4] = position */
   1,   /* field[1] = resource */
   0,   /* field[0] = type */
 };
 static const ProtobufCIntRange pb__scene__number_ranges[1 + 1] =
 {
   { 1, 0 },
-  { 0, 6 }
+  { 0, 4 }
 };
 const ProtobufCMessageDescriptor pb__scene__descriptor =
 {
@@ -720,7 +694,7 @@ const ProtobufCMessageDescriptor pb__scene__descriptor =
   "Pb__Scene",
   "pb",
   sizeof(Pb__Scene),
-  6,
+  4,
   pb__scene__field_descriptors,
   pb__scene__field_indices_by_name,
   1,  pb__scene__number_ranges,

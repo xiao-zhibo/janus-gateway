@@ -33,6 +33,9 @@ typedef enum {
     KLPackageType_AddScene,
     KLPackageType_SceneData,
     KLPackageType_EnableUserDraw,
+ 	KLPackageType_DeleteScene,
+ 	KLPackageType_ModifyScene,
+ 	KLPackageType_SceneOrderChange,
 	KLPackageType_Init,
 } KLDataPackageType;
 
@@ -44,8 +47,6 @@ typedef struct janus_scene {
 	int page_num;
 	int type;
 	int index;
-	int position;
-	gboolean deleted;
 
 	/*! 坐标存page, 指针指向相应的keyframe。用于快速定位筛选出符合的场景数据给回前端 */
 	Pb__KeyFrame **page_keyframes;
@@ -120,7 +121,11 @@ janus_whiteboard *janus_whiteboard_create(const char *oss_path, const char *loca
  * @returns 0 in case of success, a negative integer otherwise */
 janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboard, char *buffer, size_t length);
 
-janus_whiteboard_result janus_whiteboard_add_scene(janus_whiteboard *whiteboard, char *resource, int page_count, int type, int index);
+janus_whiteboard_result janus_whiteboard_add_scene(janus_whiteboard *whiteboard, char *resource, int page_count, int type, int index, int cmd_type);
+
+janus_whiteboard_result janus_whiteboard_delete_scene(janus_whiteboard *whiteboard, int index);
+
+janus_whiteboard_result janus_whiteboard_change_scene_order(janus_whiteboard *whiteboard, int index, int position);
 
 janus_whiteboard_result janus_whiteboard_packet_extension(janus_whiteboard *whiteboard, int package_type, char *extension);
 

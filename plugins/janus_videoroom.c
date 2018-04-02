@@ -389,7 +389,7 @@ static struct janus_json_parameter scene_parameters[] = {
 	{"resource", JSON_STRING, 0},
 	{"page_count", JSON_INTEGER, 0},
 	{"scene_type", JSON_INTEGER, 0},
-	{"index", JSON_INTEGER, 0}
+	{"index", JSON_INTEGER, 0},
 };
 
 /* Static configuration instance */
@@ -800,6 +800,8 @@ typedef struct janus_videoroom_data_packet {
 #define JANUS_VIDEOROOM_ERROR_NOT_PUBLISHED		435
 #define JANUS_VIDEOROOM_ERROR_ID_EXISTS			436
 #define JANUS_VIDEOROOM_ERROR_INVALID_SDP		437
+
+#define JANUS_VIDEOROOM_ERROR_INVALID_whiteboard	450
 
 
 static int janus_videoroom_wrap_datachannel_data_packet(janus_videoroom_participant *participant, char *buf, int len);
@@ -3147,7 +3149,7 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 			}
 
 		   /*@returns wret 为白板数据请求封装。前段有部分特殊指令需要返回关键帧或普通的指令帧 */
-			janus_whiteboard_result wret = janus_whiteboard_add_scene(videoroom->whiteboard, resource, page_count, scene_type, -1);
+			janus_whiteboard_result wret = janus_whiteboard_add_scene(videoroom->whiteboard, resource, page_count, scene_type, -1, KLPackageType_AddScene);
 
 			JANUS_LOG(LOG_INFO, "Got a DataChannel message (%d bytes) to forward, result: %d,%d\n", wret.keyframe_len+wret.command_len, wret.ret, wret.package_type);
 			
@@ -3199,7 +3201,7 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 		response = json_object();
 		JANUS_LOG(LOG_INFO, "Got a whiteboards message: %d\n", cmd_type);
 		
-		if (cmd_type == KLPackageType_AddScene) {
+		if (cmd_type == KLPackageType_AddScene || cmd_type == KLPackageType_ModifyScene) {
 			json_t *scenes = json_object_get(root, "scenes");
 			int scene_num = json_array_size(scenes);
 
@@ -3244,9 +3246,8 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 					json_object_set_new(response, "videoroom", json_string("fail"));
 					goto plugin_response; 
 				}
-
 			   /*@returns wret 为白板数据请求封装。前段有部分特殊指令需要返回关键帧或普通的指令帧 */
-				janus_whiteboard_result wret = janus_whiteboard_add_scene(videoroom->whiteboard, resource, page_count, scene_type, index);
+				janus_whiteboard_result wret = janus_whiteboard_add_scene(videoroom->whiteboard, cmd_type, resource, page_count, scene_type, index);
 
 				JANUS_LOG(LOG_INFO, "Got a DataChannel message (%d bytes) to forward, result: %d,%d\n", wret.keyframe_len+wret.command_len, wret.ret, wret.package_type);
 				
@@ -3277,7 +3278,7 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 				wret.command_buf = NULL;
 				json_object_set_new(response, "index", json_integer(wret.ret));
 			}
-		}  else if (cmd_type == KLPackageType_EnableUserDraw) {
+		} else if (cmd_type == KLPackageType_EnableUserDraw || cmd_type == KLPackageType_SceneOrderChange || cmd_type == KLPackageType_DeleteScene) {
 			json_t *extension_json = json_object_get(root, "extension");
 			char *extension = json_string_value(extension_json);
 
