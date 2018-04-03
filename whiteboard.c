@@ -682,7 +682,7 @@ janus_scene *janus_whiteboard_get_scene(janus_whiteboard *whiteboard, int scene_
 	return (janus_scene*)g_hash_table_lookup(whiteboard->scenes, GINT_TO_POINTER(scene_index));
 }
 
-janus_whiteboard_result janus_whiteboard_add_scene(janus_whiteboard *whiteboard, char *resource, int page_count, int type, int index, int cmd_type) {
+janus_whiteboard_result janus_whiteboard_add_scene(janus_whiteboard *whiteboard, int package_type, char *resource, int page_count, int type, int index) {
 	JANUS_LOG(LOG_INFO, "janus_whiteboard_add_scene: %s, %d, %d\n", resource, page_count, type);
 	janus_whiteboard_result result = 
 	{
@@ -705,7 +705,7 @@ janus_whiteboard_result janus_whiteboard_add_scene(janus_whiteboard *whiteboard,
 	
 	Pb__Package package;
 	pb__package__init(&package);
-	package.type = cmd_type;
+	package.type = package_type;
 	package.timestamp = janus_whiteboard_get_current_time_l() - whiteboard->start_timestamp;
 	package.newscene = g_malloc0(sizeof(Pb__Scene));
 	if (!package.newscene) {

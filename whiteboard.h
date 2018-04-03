@@ -121,7 +121,7 @@ janus_whiteboard *janus_whiteboard_create(const char *oss_path, const char *loca
  * @returns 0 in case of success, a negative integer otherwise */
 janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboard, char *buffer, size_t length);
 
-janus_whiteboard_result janus_whiteboard_add_scene(janus_whiteboard *whiteboard, char *resource, int page_count, int type, int index, int cmd_type);
+janus_whiteboard_result janus_whiteboard_add_scene(janus_whiteboard *whiteboard, int package_type, char *resource, int page_count, int type, int index);
 
 janus_whiteboard_result janus_whiteboard_delete_scene(janus_whiteboard *whiteboard, int index);
 

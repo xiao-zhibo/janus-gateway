@@ -3149,7 +3149,7 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 			}
 
 		   /*@returns wret 为白板数据请求封装。前段有部分特殊指令需要返回关键帧或普通的指令帧 */
-			janus_whiteboard_result wret = janus_whiteboard_add_scene(videoroom->whiteboard, resource, page_count, scene_type, -1, KLPackageType_AddScene);
+			janus_whiteboard_result wret = janus_whiteboard_add_scene(videoroom->whiteboard, KLPackageType_AddScene, resource, page_count, scene_type, -1);
 
 			JANUS_LOG(LOG_INFO, "Got a DataChannel message (%d bytes) to forward, result: %d,%d\n", wret.keyframe_len+wret.command_len, wret.ret, wret.package_type);
 			
