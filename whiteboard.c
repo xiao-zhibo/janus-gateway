@@ -762,6 +762,9 @@ int janus_whiteboard_scenes_data(janus_whiteboard * whiteboard, Pb__Scene **scen
 			scenes[i]->type = janusScene->type;
 			scenes[i]->resource = g_strdup(janusScene->source_url);
 			scenes[i]->pagecount = janusScene->page_num;
+			if (i >= scene_num) {
+				scene_num = i + 1;
+			}
 		}
 	}
 	return scene_num;
@@ -1074,35 +1077,11 @@ janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboa
 			Pb__Package out_package = *package;
 			out_package.page   = whiteboard->page;
 			out_package.scene  = whiteboard->scene;
-			Pb__Scene **scenes = NULL;
-			if (package->scene == -1) {
-				// 只有当前端发送scene才需要返回全部场景
-				scenes = g_malloc0(sizeof(Pb__Scene*) * scene_num);
-				if (scenes == NULL) {
-					JANUS_LOG(LOG_ERR, "out of memory when generate space for SceneData\n");
-					result.ret = -1;
-					pb__package__free_unpacked(package, NULL);
-					janus_mutex_unlock_nodebug(&whiteboard->mutex);
-					return result;
-				}
-				result.ret = janus_whiteboard_scenes_data(whiteboard, scenes);
-				JANUS_LOG(LOG_INFO, "whiteboard:scene_num：%d\n", result.ret);
-				out_package.n_scenes = result.ret;
-				out_package.scenes = scenes;
-			}
 			result.command_len = pb__package__get_packed_size(&out_package);
 			JANUS_LOG(LOG_INFO, "whiteboard:packed_size%d\n", result.command_len);
 			result.command_buf = g_malloc0(result.command_len);
 			int size = pb__package__pack(&out_package, result.command_buf);
 			JANUS_LOG(LOG_INFO, "whiteboard:command_buf_size%d\n", size);
-			if (scenes != NULL) {
-				for (int i = 0; i < scene_num; i ++) {
-					if(scenes[i])
-						g_free(scenes[i]);
-				}
-				g_free(scenes);
-				scenes = NULL;
-			}
 		} else {
 			result.ret = -1;
 		}
