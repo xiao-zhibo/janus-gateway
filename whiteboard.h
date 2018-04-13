@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include "protobuf/command.pb-c.h"
 #include "mutex.h"
+#include "glib.h"
 
 #include "io/io.h"
 
@@ -32,15 +33,20 @@ typedef enum {
     KLPackageType_AddScene,
     KLPackageType_SceneData,
     KLPackageType_EnableUserDraw,
+ 	KLPackageType_DeleteScene,
+ 	KLPackageType_ModifyScene,
+ 	KLPackageType_SceneOrderChange,
 	KLPackageType_Init,
 } KLDataPackageType;
 
 #define MAX_PACKET_CAPACITY 100000
+#define BASE_PACKET_CAPACITY 100
 
 typedef struct janus_scene {
 	char *source_url;
 	int page_num;
 	int type;
+	int index;
 
 	/*! 坐标存page, 指针指向相应的keyframe。用于快速定位筛选出符合的场景数据给回前端 */
 	Pb__KeyFrame **page_keyframes;
@@ -68,18 +74,11 @@ typedef struct janus_whiteboard {
 	/*! \brief whiteboard data file */
 	FILE *file;
 	
-	janus_scene **scenes;
-	int scene_num;
-	// Pb__Package **scene_packages;
-	// int scene_package_num;
 	//! 坐标存scene, 指针指向相应的keyframe。用于快速定位筛选出符合的场景数据给回前端 
-	// Pb__KeyFrame **scene_keyframes;
-	// int scene_keyframe_maxnum;
+	GHashTable *scenes;
 	int scene;
 	int page;
-
-	Pb__Package **scene_page_packages;
-	int scene_page_package_num;
+	GPtrArray *packages;
 
 	int64_t start_timestamp;
 	
@@ -122,7 +121,11 @@ janus_whiteboard *janus_whiteboard_create(const char *oss_path, const char *loca
  * @returns 0 in case of success, a negative integer otherwise */
 janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboard, char *buffer, size_t length);
 
-janus_whiteboard_result janus_whiteboard_add_scene(janus_whiteboard *whiteboard, char *resource, int page_count, int type, int index);
+janus_whiteboard_result janus_whiteboard_add_scene(janus_whiteboard *whiteboard, int package_type, char *resource, int page_count, int type, int index);
+
+janus_whiteboard_result janus_whiteboard_delete_scene(janus_whiteboard *whiteboard, int index);
+
+janus_whiteboard_result janus_whiteboard_change_scene_order(janus_whiteboard *whiteboard, int index, int position);
 
 janus_whiteboard_result janus_whiteboard_packet_extension(janus_whiteboard *whiteboard, int package_type, char *extension);
 

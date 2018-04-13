@@ -389,7 +389,7 @@ static struct janus_json_parameter scene_parameters[] = {
 	{"resource", JSON_STRING, 0},
 	{"page_count", JSON_INTEGER, 0},
 	{"scene_type", JSON_INTEGER, 0},
-	{"index", JSON_INTEGER, 0}
+	{"index", JSON_INTEGER, 0},
 };
 
 /* Static configuration instance */
@@ -729,8 +729,7 @@ static guint32 janus_videoroom_rtp_forwarder_add_helper(janus_videoroom_particip
 	int srtp_suite, const char *srtp_crypto,
 	int substream, gboolean is_video, gboolean is_data);
 
-static void janus_videoroom_relay_participant_packet(janus_videoroom_participant *participant, char *buf, janus_xiao_data_packet_header *header);
-static void janus_videoroom_relay_participant_packet2(janus_videoroom_participant *participant, janus_xiao_data_packet *xiao_packet);
+static void janus_videoroom_relay_participant_packet(janus_videoroom_participant *participant, janus_xiao_data_packet *xiao_packet);
 
 typedef struct janus_videoroom_listener {
 	janus_videoroom_session *session;
@@ -801,6 +800,8 @@ typedef struct janus_videoroom_data_packet {
 #define JANUS_VIDEOROOM_ERROR_NOT_PUBLISHED		435
 #define JANUS_VIDEOROOM_ERROR_ID_EXISTS			436
 #define JANUS_VIDEOROOM_ERROR_INVALID_SDP		437
+
+#define JANUS_VIDEOROOM_ERROR_INVALID_whiteboard	450
 
 
 static int janus_videoroom_wrap_datachannel_data_packet(janus_videoroom_participant *participant, char *buf, int len);
@@ -3091,7 +3092,7 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 		g_hash_table_iter_init(&iter, videoroom->participants);
 		while (!videoroom->destroyed && g_hash_table_iter_next(&iter, NULL, &value)) {
 			janus_videoroom_participant *p = value;
-			janus_videoroom_relay_participant_packet2(p, &xiao_packet);
+			janus_videoroom_relay_participant_packet(p, &xiao_packet);
 		}
 
 		janus_mutex_unlock(&videoroom->participants_mutex);
@@ -3148,7 +3149,7 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 			}
 
 		   /*@returns wret 为白板数据请求封装。前段有部分特殊指令需要返回关键帧或普通的指令帧 */
-			janus_whiteboard_result wret = janus_whiteboard_add_scene(videoroom->whiteboard, resource, page_count, scene_type, -1);
+			janus_whiteboard_result wret = janus_whiteboard_add_scene(videoroom->whiteboard, KLPackageType_AddScene, resource, page_count, scene_type, -1);
 
 			JANUS_LOG(LOG_INFO, "Got a DataChannel message (%d bytes) to forward, result: %d,%d\n", wret.keyframe_len+wret.command_len, wret.ret, wret.package_type);
 			
@@ -3172,7 +3173,7 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 			g_hash_table_iter_init(&iter, videoroom->participants);
 			while (!videoroom->destroyed && g_hash_table_iter_next(&iter, NULL, &value)) {
 				janus_videoroom_participant *p = value;
-				janus_videoroom_relay_participant_packet2(p, &xiao_packet);
+				janus_videoroom_relay_participant_packet(p, &xiao_packet);
 			}
 			janus_mutex_unlock(&videoroom->participants_mutex)
 			g_free(wret.command_buf);
@@ -3200,7 +3201,7 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 		response = json_object();
 		JANUS_LOG(LOG_INFO, "Got a whiteboards message: %d\n", cmd_type);
 		
-		if (cmd_type == KLPackageType_AddScene) {
+		if (cmd_type == KLPackageType_AddScene || cmd_type == KLPackageType_ModifyScene) {
 			json_t *scenes = json_object_get(root, "scenes");
 			int scene_num = json_array_size(scenes);
 
@@ -3245,9 +3246,8 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 					json_object_set_new(response, "videoroom", json_string("fail"));
 					goto plugin_response; 
 				}
-
 			   /*@returns wret 为白板数据请求封装。前段有部分特殊指令需要返回关键帧或普通的指令帧 */
-				janus_whiteboard_result wret = janus_whiteboard_add_scene(videoroom->whiteboard, resource, page_count, scene_type, index);
+				janus_whiteboard_result wret = janus_whiteboard_add_scene(videoroom->whiteboard, cmd_type, resource, page_count, scene_type, index);
 
 				JANUS_LOG(LOG_INFO, "Got a DataChannel message (%d bytes) to forward, result: %d,%d\n", wret.keyframe_len+wret.command_len, wret.ret, wret.package_type);
 				
@@ -3271,14 +3271,14 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 				g_hash_table_iter_init(&iter, videoroom->participants);
 				while (!videoroom->destroyed && g_hash_table_iter_next(&iter, NULL, &value)) {
 					janus_videoroom_participant *p = value;
-					janus_videoroom_relay_participant_packet2(p, &xiao_packet);
+					janus_videoroom_relay_participant_packet(p, &xiao_packet);
 				}
 				janus_mutex_unlock(&videoroom->participants_mutex)
 				g_free(wret.command_buf);
 				wret.command_buf = NULL;
 				json_object_set_new(response, "index", json_integer(wret.ret));
 			}
-		}  else if (cmd_type == KLPackageType_EnableUserDraw) {
+		} else if (cmd_type == KLPackageType_EnableUserDraw || cmd_type == KLPackageType_SceneOrderChange || cmd_type == KLPackageType_DeleteScene) {
 			json_t *extension_json = json_object_get(root, "extension");
 			char *extension = json_string_value(extension_json);
 
@@ -3328,7 +3328,7 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 			g_hash_table_iter_init(&iter, videoroom->participants);
 			while (!videoroom->destroyed && g_hash_table_iter_next(&iter, NULL, &value)) {
 				janus_videoroom_participant *p = value;
-				janus_videoroom_relay_participant_packet2(p, &xiao_packet);
+				janus_videoroom_relay_participant_packet(p, &xiao_packet);
 			}
 			janus_mutex_unlock(&videoroom->participants_mutex)
 			g_free(wret.command_buf);
@@ -3840,14 +3840,18 @@ void janus_videoroom_incoming_data(janus_plugin_session *handle, char *buf, int 
 		
 		/* ret 大于0时表示发起者发出了指令，将有数据需要返回. */
 		if (wret.ret > 0) {
-			janus_xiao_data_packet_header header;
-			header.version = JANUS_DATA_PKT_VERSION;
-			header.msg_type = MESSAGE_TYPE_WHITEBOARD;
+			janus_xiao_data_packet xiao_packet;
+			xiao_packet.version = JANUS_DATA_PKT_VERSION;
+			xiao_packet.msg_type = MESSAGE_TYPE_WHITEBOARD;
+			xiao_packet.xiao_data_packet_buf = wret.command_buf;
+			xiao_packet.total_size = wret.command_len;
 
 			if (wret.package_type == KLPackageType_AddScene) {
 				JANUS_LOG(LOG_INFO, "DataChannel Return added scene command to participant: %d, %d\n", wret.command_len, wret.command_buf);
 
-				header.total_size = wret.command_len;
+				xiao_packet.total_size = wret.command_len;
+				xiao_packet.xiao_data_packet_buf = wret.command_buf;
+
 				janus_videoroom *videoroom = participant->room;
 				janus_mutex_lock(&videoroom->participants_mutex);
 				GHashTableIter iter;
@@ -3855,7 +3859,7 @@ void janus_videoroom_incoming_data(janus_plugin_session *handle, char *buf, int 
 				g_hash_table_iter_init(&iter, videoroom->participants);
 				while (!videoroom->destroyed && g_hash_table_iter_next(&iter, NULL, &value)) {
 					janus_videoroom_participant *p = value;
-					janus_videoroom_relay_participant_packet(p, wret.command_buf, &header);
+					janus_videoroom_relay_participant_packet(p, &xiao_packet);
 				}
 				janus_mutex_unlock(&videoroom->participants_mutex);
 				// g_free(wret.command_buf);
@@ -3865,16 +3869,18 @@ void janus_videoroom_incoming_data(janus_plugin_session *handle, char *buf, int 
 				/* 返回关键帧 */
 				if (wret.keyframe_len > 0 && wret.keyframe_buf != NULL) {
 					JANUS_LOG(LOG_INFO, "DataChannel Return keyframe to viewer.\n");
-					header.total_size = wret.keyframe_len;
-				    janus_videoroom_relay_participant_packet(participant, wret.keyframe_buf, &header);
+					xiao_packet.total_size = wret.keyframe_len;
+					xiao_packet.xiao_data_packet_buf = wret.keyframe_buf;
+				    janus_videoroom_relay_participant_packet(participant, &xiao_packet);
 				    g_free(wret.keyframe_buf);
 				    wret.keyframe_buf = NULL;
 				}
 				/* 返回指令帧 */
 				if (wret.command_len > 0 && wret.command_buf != NULL) {
 					JANUS_LOG(LOG_INFO, "DataChannel Return normal packeted command frame to viewer.\n");
-					header.total_size = wret.command_len;
-					janus_videoroom_relay_participant_packet(participant, wret.command_buf, &header);
+					xiao_packet.total_size = wret.command_len;
+					xiao_packet.xiao_data_packet_buf = wret.command_buf;
+					janus_videoroom_relay_participant_packet(participant, &xiao_packet);
 					g_free(wret.command_buf);
 					wret.command_buf = NULL;
 				}
@@ -4028,7 +4034,7 @@ static void janus_videoroom_recorder_create(janus_videoroom_participant *partici
 		// JANUS_LOG(LOG_INFO, "--->videoRoom:%"SCNu64" is preparing to create a whiteboard recorder.\n", participant->room->room_id);
 		// g_snprintf(filename, 255, "videoroom-%"SCNu64"-%"SCNi64"-whiteboard", participant->room->room_id, now);
 		janus_videoroom *videoroom = participant->room;
-		participant->room->whiteboard = janus_whiteboard_create(videoroom->oss_dir, videoroom->rec_dir, videoroom->whiteboard_filename);
+		participant->room->whiteboard = janus_whiteboard_create(videoroom->oss_dir, videoroom->whiteboard_dir, videoroom->whiteboard_filename);
 		if(participant->room->whiteboard == NULL) {
 			JANUS_LOG(LOG_ERR, "Couldn't open an data recording file for this room! Try to create next time if another audio joins.\n");
 		}
@@ -6153,79 +6159,7 @@ static int janus_videoroom_wrap_datachannel_data_packet(janus_videoroom_particip
 }
 
 /* 需要重新封包。确保不大于64KB一个包 | version | type | total size | chunk | index | data buf | */
-static void janus_videoroom_relay_participant_packet(janus_videoroom_participant *participant, char *buf, janus_xiao_data_packet_header *header) {
-	if(!participant || !participant->session) {
-		return;
-	}
-	janus_videoroom_session *session = participant->session;
-	if(!session || !session->handle) {
-		return;
-	}
-	if(!session->started) {
-		return;
-	}
-	guint64 len = header->total_size;
-	if(gateway != NULL && buf != NULL && len > 0) {
-		janus_mutex_lock(&participant->data_send_mutex);
-		JANUS_LOG(LOG_VERB, "Forwarding DataChannel message (%d bytes) to viewer.\n", len);
-		unsigned char version = header->version;
-		unsigned char msg_type = header->msg_type;
-		guint64 total_size    = header->total_size;//Byte
-		unsigned char chunked = 0;//是否拆包
-		guint32 pkt_index     = 0;
-		guint64 data_writen   = 0;//已经写入
-		guint64 data_writing  = 0;//等待写入
-		const guint64 d_limit = JAVUS_VIDEOROOM_DATA_PKT_LIMIT - JAVUS_VIDEOROOM_DATA_PKT_HEADER_LEN;
-		char *chunk_pkt       = g_malloc0(JAVUS_VIDEOROOM_DATA_PKT_LIMIT);
-		if (chunk_pkt == NULL) {
-			JANUS_LOG(LOG_ERR, "Memory error.\n");
-			janus_mutex_unlock(&participant->data_send_mutex);
-			return;
-		}
-		do {
-			memset(chunk_pkt, 0, JAVUS_VIDEOROOM_DATA_PKT_LIMIT);
-			/* 拷贝包头 */
-			unsigned pkt_offset = 0;
-			memcpy((void*)(chunk_pkt + pkt_offset), (void*)&version, sizeof(version));
-			pkt_offset += sizeof(version);
-			memcpy((void*)(chunk_pkt + pkt_offset), (void*)&msg_type, sizeof(msg_type));
-			pkt_offset += sizeof(msg_type);
-			memcpy((void*)(chunk_pkt + pkt_offset), (void*)&total_size, sizeof(total_size));
-			pkt_offset += sizeof(total_size);
-			if (data_writen + d_limit >= total_size) {
-				chunked |= 0;/* 如果拆包，那就是继续为1 */
-				data_writing = total_size - data_writen;
-			} else {
-				chunked = 1;
-				data_writing = d_limit;
-			}
-			memcpy((void*)(chunk_pkt + pkt_offset), (void*)&chunked, sizeof(chunked));
-			pkt_offset += sizeof(chunked);
-			memcpy((void*)(chunk_pkt + pkt_offset), (void*)&pkt_index, sizeof(pkt_index));
-			pkt_offset += sizeof(pkt_index);
-			if (pkt_offset != JAVUS_VIDEOROOM_DATA_PKT_HEADER_LEN) {
-				JANUS_LOG(LOG_WARN, "packet offset %d not equal default length %d, reset to default?\n", pkt_offset, JAVUS_VIDEOROOM_DATA_PKT_HEADER_LEN);
-				pkt_offset = JAVUS_VIDEOROOM_DATA_PKT_HEADER_LEN;
-			}
-
-			/* 拷贝并分发内容分块 */
-			memcpy((void*)(chunk_pkt + pkt_offset), (void*)(buf + data_writen), data_writing);
-			gateway->relay_data(session->handle, chunk_pkt, pkt_offset + data_writing);
-			JANUS_LOG(LOG_VERB, ">Forwarding DataChannel message (%zu bytes) to viewer. chunk:%d, index:%d\n", data_writing, chunked, pkt_index);
-			pkt_index   += 1;
-			data_writen += data_writing;
-
-		} while(data_writen < total_size);
-		
-		g_free(chunk_pkt);
-		chunk_pkt = NULL;
-		janus_mutex_unlock(&participant->data_send_mutex);
-	}
-	return;
-}
-
-/* 需要重新封包。确保不大于64KB一个包 | version | type | total size | chunk | index | data buf | */
-static void janus_videoroom_relay_participant_packet2(janus_videoroom_participant *participant, janus_xiao_data_packet *xiao_packet) {
+static void janus_videoroom_relay_participant_packet(janus_videoroom_participant *participant, janus_xiao_data_packet *xiao_packet) {
 	if(!participant || !participant->session || !xiao_packet) {
 		return;
 	}
