@@ -646,7 +646,7 @@ int janus_whiteboard_add_scene_l(janus_whiteboard *whiteboard, Pb__Scene *newSce
 			}
 			if (tmp_scene->page_num > 0 && tmp_scene->page_keyframes) {
 				JANUS_LOG(LOG_INFO, "janus_whiteboard_add_scene_l 000000000000000\n");
-				g_free(tmp_scene->page_keyframes);
+				// g_free(tmp_scene->page_keyframes);
 				// g_free(tmp_scene->source_url);
 			}
 			
