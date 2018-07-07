@@ -649,8 +649,7 @@ int janus_whiteboard_add_scene_l(janus_whiteboard *whiteboard, Pb__Scene *newSce
 				// g_free(tmp_scene->page_keyframes);
 				// g_free(tmp_scene->source_url);
 			}
-			
-			g_free(tmp_scene);
+			// g_free(tmp_scene);
 		}
 		g_hash_table_insert(whiteboard->scenes, GINT_TO_POINTER(newScene->index), j_scene);
 	}
