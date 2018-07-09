@@ -79,10 +79,11 @@ struct  _Pb__Scene
   char *resource;
   int32_t pagecount;
   int32_t index;
+  char *resourceid;
 };
 #define PB__SCENE__INIT \
  { PROTOBUF_C_MESSAGE_INIT (&pb__scene__descriptor) \
-    , 0, (char *)protobuf_c_empty_string, 0, 0 }
+    , 0, (char *)protobuf_c_empty_string, 0, 0, (char *)protobuf_c_empty_string }
 
 
 struct  _Pb__Package

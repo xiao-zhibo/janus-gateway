@@ -29,6 +29,7 @@ message Scene {
     string resource = 2;
     int32 pagecount = 3;
     int32 index = 4;
+    string resourceId = 5;
 }
 
 message Package {

@@ -377,7 +377,8 @@ static struct janus_json_parameter whiteboard_parameters[] = {
 	{"cmd_type", JSON_INTEGER, 0},
 	{"resource", JSON_STRING, 0},
 	{"page_count", JSON_INTEGER, 0},
-	{"scene_type", JSON_INTEGER, 0}
+	{"scene_type", JSON_INTEGER, 0},
+	{"resource_id", JSON_STRING, 0}
 };
 static struct janus_json_parameter whiteboards_parameters[] = {
 	{"room", JSON_INTEGER, JANUS_JSON_PARAM_REQUIRED | JANUS_JSON_PARAM_POSITIVE},
@@ -390,6 +391,7 @@ static struct janus_json_parameter scene_parameters[] = {
 	{"page_count", JSON_INTEGER, 0},
 	{"scene_type", JSON_INTEGER, 0},
 	{"index", JSON_INTEGER, 0},
+	{"resource_id", JSON_STRING, 0},
 };
 
 /* Static configuration instance */
@@ -3125,6 +3127,8 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 			int page_count = json_integer_value(json_page_count);
 			json_t *json_scene_type = json_object_get(root, "scene_type");
 			int scene_type = json_integer_value(json_scene_type);
+			json_t *json_resource_id = json_object_get(root, "resource_id");
+			char *resource_id = g_strdup(json_string_value(json_resource_id));
 
 			janus_mutex_lock(&rooms_mutex);
 			janus_videoroom *videoroom = g_hash_table_lookup(rooms, &room_id);
@@ -3149,7 +3153,7 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 			}
 
 		   /*@returns wret 为白板数据请求封装。前段有部分特殊指令需要返回关键帧或普通的指令帧 */
-			janus_whiteboard_result wret = janus_whiteboard_add_scene(videoroom->whiteboard, KLPackageType_AddScene, resource, page_count, scene_type, -1);
+			janus_whiteboard_result wret = janus_whiteboard_add_scene(videoroom->whiteboard, KLPackageType_AddScene, resource_id, resource, page_count, scene_type, -1);
 
 			JANUS_LOG(LOG_INFO, "Got a DataChannel message (%d bytes) to forward, result: %d,%d\n", wret.keyframe_len+wret.command_len, wret.ret, wret.package_type);
 			
@@ -3224,6 +3228,11 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 				int scene_type = json_integer_value(json_scene_type);
 				json_t *json_index = json_object_get(scene, "index");
 				int index = json_integer_value(json_index);
+				json_t *json_resource_id = json_object_get(scene, "resource_id");
+				char *resource_id = g_strdup(json_string_value(json_resource_id));
+				if (json_resource_id == NULL) {
+					resource_id = "";
+				}
 
 				janus_mutex_lock(&rooms_mutex);
 				janus_videoroom *videoroom = g_hash_table_lookup(rooms, &room_id);
@@ -3247,7 +3256,7 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 					goto plugin_response; 
 				}
 			   /*@returns wret 为白板数据请求封装。前段有部分特殊指令需要返回关键帧或普通的指令帧 */
-				janus_whiteboard_result wret = janus_whiteboard_add_scene(videoroom->whiteboard, cmd_type, resource, page_count, scene_type, index);
+				janus_whiteboard_result wret = janus_whiteboard_add_scene(videoroom->whiteboard, cmd_type, resource_id, resource, page_count, scene_type, index);
 
 				JANUS_LOG(LOG_INFO, "Got a DataChannel message (%d bytes) to forward, result: %d,%d\n", wret.keyframe_len+wret.command_len, wret.ret, wret.package_type);
 				

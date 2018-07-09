@@ -441,6 +441,12 @@ int janus_whiteboard_init_scene_from_file_l(janus_whiteboard *whiteboard) {
 		j_scene->page_keyframes       			= g_malloc0(sizeof(Pb__KeyFrame*) * j_scene->page_num);
 		j_scene->page_keyframe_maxnum 			= 0;
 		j_scene->index 							= tmp_scene->index;
+		if (tmp_scene->resourceid != NULL) {
+			j_scene->source_id = g_strdup(tmp_scene->resourceid);
+		} else {
+			j_scene->source_id = "";
+		}
+
 		g_hash_table_insert(whiteboard->scenes, GINT_TO_POINTER(tmp_scene->index), j_scene);
 		JANUS_LOG(LOG_INFO, "whiteboard:janus scene: %d %s, %d\n", tmp_scene->index, j_scene->source_url, j_scene->page_num);
 
@@ -626,6 +632,12 @@ int janus_whiteboard_add_scene_l(janus_whiteboard *whiteboard, Pb__Scene *newSce
 	j_scene->page_num = newScene->pagecount;
 	j_scene->page_keyframes = g_malloc0(sizeof(Pb__KeyFrame*) * j_scene->page_num);
 	j_scene->page_keyframe_maxnum = 0;
+	if (newScene->resourceid != NULL) {
+		j_scene->source_id = g_strdup(newScene->resourceid);
+	} else {
+		j_scene->source_id = "";
+	}
+
 	int scene_num = g_hash_table_size (whiteboard->scenes);
 	if (newScene->index == -1) {
 		newScene->index = scene_num;
@@ -681,7 +693,7 @@ janus_scene *janus_whiteboard_get_scene(janus_whiteboard *whiteboard, int scene_
 	return (janus_scene*)g_hash_table_lookup(whiteboard->scenes, GINT_TO_POINTER(scene_index));
 }
 
-janus_whiteboard_result janus_whiteboard_add_scene(janus_whiteboard *whiteboard, int package_type, char *resource, int page_count, int type, int index) {
+janus_whiteboard_result janus_whiteboard_add_scene(janus_whiteboard *whiteboard, int package_type, char *resource_id, char *resource, int page_count, int type, int index) {
 	JANUS_LOG(LOG_INFO, "janus_whiteboard_add_scene: %s, %d, %d\n", resource, page_count, type);
 	janus_whiteboard_result result = 
 	{
@@ -716,6 +728,7 @@ janus_whiteboard_result janus_whiteboard_add_scene(janus_whiteboard *whiteboard,
 	package.newscene->resource = g_strdup(resource);
 	package.newscene->pagecount = page_count;
 	package.newscene->index = index;
+	package.newscene->resourceid = g_strdup(resource_id);
 
 	janus_mutex_lock_nodebug(&whiteboard->mutex);
 	if(!whiteboard->file) {
@@ -761,6 +774,12 @@ int janus_whiteboard_scenes_data(janus_whiteboard * whiteboard, Pb__Scene **scen
 			scenes[i]->type = janusScene->type;
 			scenes[i]->resource = g_strdup(janusScene->source_url);
 			scenes[i]->pagecount = janusScene->page_num;
+			if (janusScene->source_id != NULL) {
+				scenes[i]->resourceid = g_strdup(janusScene->source_id);
+			} else {
+				scenes[i]->resourceid = "";
+			}
+
 			if (i >= scene_num) {
 				scene_num = i + 1;
 			}
