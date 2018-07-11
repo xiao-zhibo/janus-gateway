@@ -2,11 +2,10 @@
 FROM registry.cn-shenzhen.aliyuncs.com/xiaozhibo/janus-gateway:base
 MAINTAINER phtanus <sysu511@gmail.com>
 
-# WORKDIR /janus-gateway
 
 # Copy installation scripts in
-COPY *.sh ./
-COPY .. ./janus-gateway
+COPY docker-script/*.sh ./
+COPY . ./janus-gateway
 
 # # Prepare the system
 # RUN sh ./setup.sh
@@ -28,7 +27,7 @@ COPY .. ./janus-gateway
 # Clone, build and install the gateway
 RUN sh ./janus.sh
 # Put configs in place
-COPY conf/*.cfg /opt/janus/etc/janus/
+COPY docker-script/conf/*.cfg /opt/janus/etc/janus/
 
 # Declare the ports we use
 # EXPOSE 80 7088 8088 8188
