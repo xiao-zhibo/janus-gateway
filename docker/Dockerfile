@@ -3,7 +3,7 @@ MAINTAINER phtanus <sysu511@gmail.com>
 
 # Copy installation scripts in
 COPY *.sh ./
-COPY janus-gateway ./janus-gateway
+COPY ../../janus-gateway ./janus-gateway
 
 # # Prepare the system
 # RUN sh ./setup.sh
