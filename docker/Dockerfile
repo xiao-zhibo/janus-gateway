@@ -1,4 +1,4 @@
-FROM registry-internal.cn-shenzhen.aliyuncs.com/xiaozhibo/janus-gateway:base
+FROM registry.cn-shenzhen.aliyuncs.com/xiaozhibo/janus-gateway:base
 MAINTAINER phtanus <sysu511@gmail.com>
 
 # Copy installation scripts in
