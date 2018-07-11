@@ -3,8 +3,8 @@ FROM registry.cn-shenzhen.aliyuncs.com/xiaozhibo/janus-gateway:base
 MAINTAINER phtanus <sysu511@gmail.com>
 
 # Copy installation scripts in
-# COPY *.sh ./
-# COPY ../janus-gateway ./janus-gateway
+COPY *.sh ./
+COPY ../* ./janus-gateway/
 
 # # Prepare the system
 # RUN sh ./setup.sh

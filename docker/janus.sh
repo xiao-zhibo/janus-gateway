@@ -1,4 +1,4 @@
-cd ..
+cd janus-gateway
 
 make clean
 sh autogen.sh
