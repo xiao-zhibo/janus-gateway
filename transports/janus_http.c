@@ -69,6 +69,7 @@ int janus_http_send_message(void *transport, void *request_id, gboolean admin, j
 void janus_http_session_created(void *transport, guint64 session_id);
 void janus_http_session_over(void *transport, guint64 session_id, gboolean timeout);
 
+#define LONG_POLL_TIMETOUT 25
 
 /* Transport setup */
 static janus_transport janus_http_transport =
@@ -1730,8 +1731,8 @@ int janus_http_notifier(janus_http_msg *msg, int max_events) {
 	gint64 end = 0;
 	json_t *event = NULL, *list = NULL;
 	gboolean found = FALSE;
-	/* We have a timeout for the long poll: 30 seconds */
-	while(end-start < 30*G_USEC_PER_SEC) {
+	/* We have a timeout for the long poll: 25 seconds */
+	while(end-start < LONG_POLL_TIMETOUT*G_USEC_PER_SEC) {
 		if(session->destroyed)
 			break;
 		event = g_async_queue_try_pop(session->events);
