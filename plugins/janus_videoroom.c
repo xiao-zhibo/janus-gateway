@@ -5851,7 +5851,7 @@ static void janus_videoroom_relay_rtp_packet(gpointer data, gpointer user_data) 
 			JANUS_LOG(LOG_HUGE, "Sending packet (spatial=%d, temporal=%d)\n",
 				packet->spatial_layer, packet->temporal_layer);
 			/* Fix sequence number and timestamp (publisher switching may be involved) */
-			janus_rtp_header_update(packet->data, &listener->context, TRUE, 4500);
+			// janus_rtp_header_update(packet->data, &listener->context, TRUE, 4500);
 			if(override_mark_bit && !has_marker_bit) {
 				packet->data->markerbit = 1;
 			}
@@ -5964,7 +5964,7 @@ static void janus_videoroom_relay_rtp_packet(gpointer data, gpointer user_data) 
 				}
 			}
 			/* If we got here, update the RTP header and send the packet */
-			janus_rtp_header_update(packet->data, &listener->context, TRUE, 4500);
+			// janus_rtp_header_update(packet->data, &listener->context, TRUE, 4500);
 			char vp8pd[6];
 			memcpy(vp8pd, payload, sizeof(vp8pd));
 			janus_vp8_simulcast_descriptor_update(payload, plen, &listener->simulcast_context, switched);
@@ -5978,7 +5978,7 @@ static void janus_videoroom_relay_rtp_packet(gpointer data, gpointer user_data) 
 			memcpy(payload, vp8pd, sizeof(vp8pd));
 		} else {
 			/* Fix sequence number and timestamp (publisher switching may be involved) */
-			janus_rtp_header_update(packet->data, &listener->context, TRUE, 4500);
+			// janus_rtp_header_update(packet->data, &listener->context, TRUE, 4500);
 			/* Send the packet */
 			if(gateway != NULL)
 				gateway->relay_rtp(session->handle, packet->is_video, (char *)packet->data, packet->length);
@@ -5993,7 +5993,7 @@ static void janus_videoroom_relay_rtp_packet(gpointer data, gpointer user_data) 
 			return;
 		}
 		/* Fix sequence number and timestamp (publisher switching may be involved) */
-		janus_rtp_header_update(packet->data, &listener->context, FALSE, 960);
+		// janus_rtp_header_update(packet->data, &listener->context, FALSE, 960);
 		/* Send the packet */
 		if(gateway != NULL)
 			gateway->relay_rtp(session->handle, packet->is_video, (char *)packet->data, packet->length);
