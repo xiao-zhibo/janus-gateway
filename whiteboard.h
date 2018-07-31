@@ -26,17 +26,18 @@ typedef enum
 typedef enum {
 	KLPackageType_None = -1,
 	KLPackageType_DrawCommand = 0,
-    KLPackageType_SwitchScenePage,
-    KLPackageType_CleanDraw,
-    KLPackageType_ScenePageData,
-    KLPackageType_KeyFrame,
-    KLPackageType_AddScene,
-    KLPackageType_SceneData,
-    KLPackageType_EnableUserDraw,
- 	KLPackageType_DeleteScene,
- 	KLPackageType_ModifyScene,
- 	KLPackageType_SceneOrderChange,
-	KLPackageType_Init,
+    KLPackageType_SwitchScenePage = 1,
+    KLPackageType_CleanDraw = 2,
+    KLPackageType_ScenePageData = 3,
+    KLPackageType_KeyFrame = 4,
+    KLPackageType_AddScene = 5,
+    KLPackageType_SceneData = 6,
+    KLPackageType_EnableUserDraw = 7,
+ 	KLPackageType_DeleteScene = 8,
+ 	KLPackageType_ModifyScene = 9,
+ 	KLPackageType_SceneOrderChange = 10,
+	KLPackageType_Init = 11,
+	KLPackageType_Callback = 12,
 } KLDataPackageType;
 
 #define MAX_PACKET_CAPACITY 100000
@@ -129,6 +130,8 @@ janus_whiteboard_result janus_whiteboard_delete_scene(janus_whiteboard *whiteboa
 janus_whiteboard_result janus_whiteboard_change_scene_order(janus_whiteboard *whiteboard, int index, int position);
 
 janus_whiteboard_result janus_whiteboard_packet_extension(janus_whiteboard *whiteboard, int package_type, char *extension);
+
+janus_whiteboard_result janus_whiteboard_packet_callback(janus_whiteboard *whiteboard, char *buffer, size_t length);
 
 /*! \brief Close the whiteboard
  * @param[in] whiteboard The janus_whiteboard instance to close

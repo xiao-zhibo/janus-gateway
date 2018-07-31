@@ -3908,6 +3908,17 @@ void janus_videoroom_incoming_data(janus_plugin_session *handle, char *buf, int 
 		JANUS_LOG(LOG_INFO, "Got a DataChannel message other type: %d", participant->xiao_data_packet_header->msg_type);
 		/* Save the message if we're recording */
 		int ret = janus_recorder_save_frame(participant->drc, participant->xiao_data_packet_buf, participant->xiao_data_packet_received);
+
+		janus_whiteboard_result wret = janus_whiteboard_packet_callback(participant->room->whiteboard, participant->xiao_data_packet_buf, participant->xiao_data_packet_received);
+		if (wret.ret >= 0 && wret.command_len > 0) {
+			janus_xiao_data_packet xiao_packet;
+			xiao_packet.version = JANUS_DATA_PKT_VERSION;
+			xiao_packet.msg_type = participant->xiao_data_packet_header->msg_type;
+			xiao_packet.xiao_data_packet_buf = wret.command_buf;
+			xiao_packet.total_size = wret.command_len;
+			janus_videoroom_relay_participant_packet(participant, &xiao_packet);
+		}
+
 		/* Relay to all listeners */
 		janus_videoroom_data_packet packet;
 		packet.data = buf;
