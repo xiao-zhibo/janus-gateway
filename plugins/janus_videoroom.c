@@ -3914,27 +3914,30 @@ void janus_videoroom_incoming_data(janus_plugin_session *handle, char *buf, int 
 		int ret = janus_recorder_save_frame(participant->drc, participant->xiao_data_packet_buf, participant->xiao_data_packet_received);
 
 		// send ack of message
-		json_error_t error;
+		json_error_t error;JANUS_LOG(LOG_INFO, "Got a DataChannel  00000");
 		json_t *message = json_loads(participant->xiao_data_packet_buf, 0, &error);
-		if (message != NULL) {
+		JANUS_LOG(LOG_INFO, "Got a DataChannel  11111");
+		if (message != NULL) {JANUS_LOG(LOG_INFO, "Got a DataChannel  22222");
 			int seq_id = 0;
 			json_t *seq_id_json = json_object_get(message, "seq_id");
 			if(seq_id_json && json_is_integer(seq_id_json))
 				seq_id = json_integer_value(seq_id_json);
-
+			JANUS_LOG(LOG_INFO, "Got a DataChannel  3333");
 			json_t *ack = json_object();
+			JANUS_LOG(LOG_INFO, "Got a DataChannel  4444");
 			json_object_set_new(ack, "ack_id", json_integer(seq_id));
 			json_object_set_new(ack, "message_type", json_string(participant->xiao_data_packet_header->msg_type));
-
+			JANUS_LOG(LOG_INFO, "Got a DataChannel  5555");
 			char *content = json_dumps(ack, json_format);
-
+			JANUS_LOG(LOG_INFO, "Got a DataChannel  6666");
 			janus_xiao_data_packet xiao_packet;
 			xiao_packet.version = JANUS_DATA_PKT_VERSION;
 			xiao_packet.msg_type = MESSAGE_TYPE_ACK;
 			xiao_packet.xiao_data_packet_buf = content;
 			xiao_packet.total_size = strlen(content);
-
+			JANUS_LOG(LOG_INFO, "Got a DataChannel  7777");
 			janus_videoroom_relay_participant_packet(participant, &xiao_packet);
+			JANUS_LOG(LOG_INFO, "Got a DataChannel  8888");
 		}
 
 		/* Relay to all listeners */
