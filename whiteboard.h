@@ -131,8 +131,6 @@ janus_whiteboard_result janus_whiteboard_change_scene_order(janus_whiteboard *wh
 
 janus_whiteboard_result janus_whiteboard_packet_extension(janus_whiteboard *whiteboard, int package_type, char *extension);
 
-janus_whiteboard_result janus_whiteboard_packet_callback(janus_whiteboard *whiteboard, char *buffer, size_t length);
-
 /*! \brief Close the whiteboard
  * @param[in] whiteboard The janus_whiteboard instance to close
  * @returns 0 in case of success, a negative integer otherwise */

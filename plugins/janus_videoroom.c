@@ -777,11 +777,15 @@ typedef struct janus_videoroom_data_packet {
 	gint length;
 } janus_videoroom_data_packet;
 
+/* data channel message type*/
 #define MESSAGE_TYPE_NONE 0
 #define MESSAGE_TYPE_WHITEBOARD 1
 #define MESSAGE_TYPE_CHAT 2
 #define MESSAGE_TYPE_SYSTEM 3
+#define MESSAGE_TYPE_ACK 4
 
+/* JSON serialization options */
+static size_t json_format = JSON_INDENT(3) | JSON_PRESERVE_ORDER;
 
 /* Error codes */
 #define JANUS_VIDEOROOM_ERROR_UNKNOWN_ERROR		499
@@ -3909,13 +3913,27 @@ void janus_videoroom_incoming_data(janus_plugin_session *handle, char *buf, int 
 		/* Save the message if we're recording */
 		int ret = janus_recorder_save_frame(participant->drc, participant->xiao_data_packet_buf, participant->xiao_data_packet_received);
 
-		janus_whiteboard_result wret = janus_whiteboard_packet_callback(participant->room->whiteboard, participant->xiao_data_packet_buf, participant->xiao_data_packet_received);
-		if (wret.ret >= 0 && wret.command_len > 0) {
+		// send ack of message
+		json_error_t error;
+		json_t *message = json_loads(participant->xiao_data_packet_buf, 0, &error);
+		if (message != NULL) {
+			int seq_id = 0;
+			json_t *seq_id_json = json_object_get(message, "seq_id");
+			if(seq_id_json && json_is_integer(seq_id_json))
+				seq_id = json_integer_value(seq_id_json);
+
+			json_t *ack = json_object();
+			json_object_set_new(ack, "ack_id", json_integer(seq_id));
+			json_object_set_new(ack, "message_type", json_string(participant->xiao_data_packet_header->msg_type));
+
+			char *content = json_dumps(ack, json_format);
+
 			janus_xiao_data_packet xiao_packet;
 			xiao_packet.version = JANUS_DATA_PKT_VERSION;
-			xiao_packet.msg_type = participant->xiao_data_packet_header->msg_type;
-			xiao_packet.xiao_data_packet_buf = wret.command_buf;
-			xiao_packet.total_size = wret.command_len;
+			xiao_packet.msg_type = MESSAGE_TYPE_ACK;
+			xiao_packet.xiao_data_packet_buf = content;
+			xiao_packet.total_size = strlen(content);
+
 			janus_videoroom_relay_participant_packet(participant, &xiao_packet);
 		}
 

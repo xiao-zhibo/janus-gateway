@@ -42,7 +42,6 @@ message Package {
     Scene newScene = 7;
     repeated Scene scenes = 8;
     string extension = 9;
-    int64 message_id = 10;
 }
 
 message KeyFrame {
