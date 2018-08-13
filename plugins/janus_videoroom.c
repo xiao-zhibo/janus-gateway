@@ -6175,7 +6175,7 @@ static int janus_videoroom_wrap_datachannel_data_packet(janus_videoroom_particip
 		// 大包被拆分
 		// 开辟缓冲区
 		if (participant->xiao_data_packet_buf == NULL) {
-			participant->xiao_data_packet_buf = g_malloc0(total_size);
+			participant->xiao_data_packet_buf = g_malloc0(total_size + 1);
 			if (participant->xiao_data_packet_buf == NULL) {
 				JANUS_LOG(LOG_ERR, "Memory error on create whiteboard data packet buf\n");
 				return -1;
@@ -6199,7 +6199,7 @@ static int janus_videoroom_wrap_datachannel_data_packet(janus_videoroom_particip
 			g_free(participant->xiao_data_packet_buf);
 			participant->xiao_data_packet_buf = NULL;
 		}
-		participant->xiao_data_packet_buf = g_malloc0(total_size);
+		participant->xiao_data_packet_buf = g_malloc0(total_size + 1);
 		if (participant->xiao_data_packet_buf == NULL) {
 			JANUS_LOG(LOG_ERR, "Memory error on create whiteboard data packet buf\n");
 			return -1;
@@ -6319,7 +6319,7 @@ static int janus_videoroom_wrap_packet(janus_xiao_data_packet *xiao_packet, char
 		// 大包被拆分
 		// 开辟缓冲区
 		if (xiao_packet->xiao_data_packet_buf == NULL) {
-			xiao_packet->xiao_data_packet_buf = g_malloc0(total_size);
+			xiao_packet->xiao_data_packet_buf = g_malloc0(total_size + 1);
 			if (xiao_packet->xiao_data_packet_buf == NULL) {
 				JANUS_LOG(LOG_ERR, "Memory error on create whiteboard data packet buf\n");
 				return -1;
@@ -6343,7 +6343,7 @@ static int janus_videoroom_wrap_packet(janus_xiao_data_packet *xiao_packet, char
 			g_free(xiao_packet->xiao_data_packet_buf);
 			xiao_packet->xiao_data_packet_buf = NULL;
 		}
-		xiao_packet->xiao_data_packet_buf = g_malloc0(total_size);
+		xiao_packet->xiao_data_packet_buf = g_malloc0(total_size + 1);
 		if (xiao_packet->xiao_data_packet_buf == NULL) {
 			JANUS_LOG(LOG_ERR, "Memory error on create whiteboard data packet buf\n");
 			return -1;
