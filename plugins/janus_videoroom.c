@@ -3941,7 +3941,7 @@ void janus_videoroom_incoming_data(janus_plugin_session *handle, char *buf, int 
 			json_decref(ack);
 			json_decref(message);
 		} else {
-			JANUS_LOG(LOG_WARN, "loads jason error: ", json_dumps(&error, json_format));
+			JANUS_LOG(LOG_WARN, "loads jason error: %d, %s", error.line, error.text);
 		}
 
 		/* Relay to all listeners */
