@@ -809,6 +809,8 @@ static size_t json_format = JSON_INDENT(3) | JSON_PRESERVE_ORDER;
 
 #define JANUS_VIDEOROOM_ERROR_INVALID_whiteboard	450
 
+#define JANUS_VIDEOROOM_ERROR_INVALID_DISPLAY   470
+
 
 static int janus_videoroom_wrap_datachannel_data_packet(janus_videoroom_participant *participant, char *buf, int len);
 static int janus_videoroom_wrap_packet(janus_xiao_data_packet *xiao_packet, char *buf, int len);
@@ -4314,6 +4316,14 @@ static void *janus_videoroom_handler(void *data) {
 						g_snprintf(error_cause, 512, "User ID %"SCNu64" already exists", user_id);
 						goto error;
 					}
+				}
+				if (display_text == NULL) {
+					janus_mutex_unlock(&videoroom->participants_mutex);
+					/* user name is null*/
+					JANUS_LOG(LOG_ERR, "user dispaly nane is NULL");
+					error_code = JANUS_VIDEOROOM_ERROR_INVALID_DISPLAY;
+					g_snprintf(error_cause, 512, "User display name invalid.");
+					goto error;
 				}
 				janus_videoroom_participant *participant = (janus_videoroom_participant *)g_hash_table_find(videoroom->participants, is_same_participant, display_text);
 				if (participant && !participant->kicked) {
