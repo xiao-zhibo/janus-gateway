@@ -3916,7 +3916,8 @@ void janus_videoroom_incoming_data(janus_plugin_session *handle, char *buf, int 
 		int ret = janus_recorder_save_frame(participant->drc, participant->xiao_data_packet_buf, participant->xiao_data_packet_received);
 
 		// send ack of message
-		json_error_t error;JANUS_LOG(LOG_INFO, "Got a DataChannel content: %s\n", participant->xiao_data_packet_buf);
+		json_error_t error;
+		JANUS_LOG(LOG_INFO, "Got a DataChannel content: %s\n", participant->xiao_data_packet_buf);
 		json_t *message = json_loads(participant->xiao_data_packet_buf, 0, &error);
 		
 		if (message) {
@@ -3939,6 +3940,8 @@ void janus_videoroom_incoming_data(janus_plugin_session *handle, char *buf, int 
 
 			json_decref(ack);
 			json_decref(message);
+		} else {
+			JANUS_LOG(LOG_WARN, "loads jason error: ", json_dumps(&error, json_format));
 		}
 
 		/* Relay to all listeners */
