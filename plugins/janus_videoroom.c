@@ -777,11 +777,15 @@ typedef struct janus_videoroom_data_packet {
 	gint length;
 } janus_videoroom_data_packet;
 
+/* data channel message type*/
 #define MESSAGE_TYPE_NONE 0
 #define MESSAGE_TYPE_WHITEBOARD 1
 #define MESSAGE_TYPE_CHAT 2
 #define MESSAGE_TYPE_SYSTEM 3
+#define MESSAGE_TYPE_ACK 4
 
+/* JSON serialization options */
+static size_t json_format = JSON_INDENT(3) | JSON_PRESERVE_ORDER;
 
 /* Error codes */
 #define JANUS_VIDEOROOM_ERROR_UNKNOWN_ERROR		499
@@ -804,6 +808,8 @@ typedef struct janus_videoroom_data_packet {
 #define JANUS_VIDEOROOM_ERROR_INVALID_SDP		437
 
 #define JANUS_VIDEOROOM_ERROR_INVALID_whiteboard	450
+
+#define JANUS_VIDEOROOM_ERROR_INVALID_DISPLAY   470
 
 
 static int janus_videoroom_wrap_datachannel_data_packet(janus_videoroom_participant *participant, char *buf, int len);
@@ -3905,9 +3911,39 @@ void janus_videoroom_incoming_data(janus_plugin_session *handle, char *buf, int 
 			janus_mutex_unlock_nodebug(&participant->listeners_mutex);
 		}
 	} else {
-		JANUS_LOG(LOG_INFO, "Got a DataChannel message other type: %d", participant->xiao_data_packet_header->msg_type);
+		JANUS_LOG(LOG_INFO, "Got a DataChannel message other type: %d\n", participant->xiao_data_packet_header->msg_type);
 		/* Save the message if we're recording */
 		int ret = janus_recorder_save_frame(participant->drc, participant->xiao_data_packet_buf, participant->xiao_data_packet_received);
+
+		// send ack of message
+		json_error_t error;
+		JANUS_LOG(LOG_INFO, "Got a DataChannel content: %s\n", participant->xiao_data_packet_buf);
+		json_t *message = json_loads(participant->xiao_data_packet_buf, 0, &error);
+		
+		if (message) {
+			int seq_id = 0;
+			json_t *seq_id_json = json_object_get(message, "seq_id");
+			if(seq_id_json && json_is_integer(seq_id_json))
+				seq_id = json_integer_value(seq_id_json);
+
+			json_t *ack = json_object();
+			json_object_set_new(ack, "ack_id", json_integer(seq_id));
+			json_object_set_new(ack, "message_type", json_integer(participant->xiao_data_packet_header->msg_type));
+			char *content = json_dumps(ack, json_format);
+
+			janus_xiao_data_packet xiao_packet;
+			xiao_packet.version = JANUS_DATA_PKT_VERSION;
+			xiao_packet.msg_type = MESSAGE_TYPE_ACK;
+			xiao_packet.xiao_data_packet_buf = content;
+			xiao_packet.total_size = strlen(content);
+			janus_videoroom_relay_participant_packet(participant, &xiao_packet);
+
+			json_decref(ack);
+			json_decref(message);
+		} else {
+			JANUS_LOG(LOG_WARN, "loads jason error: %d, %s", error.line, error.text);
+		}
+
 		/* Relay to all listeners */
 		janus_videoroom_data_packet packet;
 		packet.data = buf;
@@ -4283,6 +4319,14 @@ static void *janus_videoroom_handler(void *data) {
 						g_snprintf(error_cause, 512, "User ID %"SCNu64" already exists", user_id);
 						goto error;
 					}
+				}
+				if (display_text == NULL) {
+					janus_mutex_unlock(&videoroom->participants_mutex);
+					/* user name is null*/
+					JANUS_LOG(LOG_ERR, "user dispaly nane is NULL");
+					error_code = JANUS_VIDEOROOM_ERROR_INVALID_DISPLAY;
+					g_snprintf(error_cause, 512, "User display name invalid.");
+					goto error;
 				}
 				janus_videoroom_participant *participant = (janus_videoroom_participant *)g_hash_table_find(videoroom->participants, is_same_participant, display_text);
 				if (participant && !participant->kicked) {
@@ -6131,7 +6175,7 @@ static int janus_videoroom_wrap_datachannel_data_packet(janus_videoroom_particip
 		// 大包被拆分
 		// 开辟缓冲区
 		if (participant->xiao_data_packet_buf == NULL) {
-			participant->xiao_data_packet_buf = g_malloc0(total_size);
+			participant->xiao_data_packet_buf = g_malloc0(total_size + 1);
 			if (participant->xiao_data_packet_buf == NULL) {
 				JANUS_LOG(LOG_ERR, "Memory error on create whiteboard data packet buf\n");
 				return -1;
@@ -6155,7 +6199,7 @@ static int janus_videoroom_wrap_datachannel_data_packet(janus_videoroom_particip
 			g_free(participant->xiao_data_packet_buf);
 			participant->xiao_data_packet_buf = NULL;
 		}
-		participant->xiao_data_packet_buf = g_malloc0(total_size);
+		participant->xiao_data_packet_buf = g_malloc0(total_size + 1);
 		if (participant->xiao_data_packet_buf == NULL) {
 			JANUS_LOG(LOG_ERR, "Memory error on create whiteboard data packet buf\n");
 			return -1;
@@ -6275,7 +6319,7 @@ static int janus_videoroom_wrap_packet(janus_xiao_data_packet *xiao_packet, char
 		// 大包被拆分
 		// 开辟缓冲区
 		if (xiao_packet->xiao_data_packet_buf == NULL) {
-			xiao_packet->xiao_data_packet_buf = g_malloc0(total_size);
+			xiao_packet->xiao_data_packet_buf = g_malloc0(total_size + 1);
 			if (xiao_packet->xiao_data_packet_buf == NULL) {
 				JANUS_LOG(LOG_ERR, "Memory error on create whiteboard data packet buf\n");
 				return -1;
@@ -6299,7 +6343,7 @@ static int janus_videoroom_wrap_packet(janus_xiao_data_packet *xiao_packet, char
 			g_free(xiao_packet->xiao_data_packet_buf);
 			xiao_packet->xiao_data_packet_buf = NULL;
 		}
-		xiao_packet->xiao_data_packet_buf = g_malloc0(total_size);
+		xiao_packet->xiao_data_packet_buf = g_malloc0(total_size + 1);
 		if (xiao_packet->xiao_data_packet_buf == NULL) {
 			JANUS_LOG(LOG_ERR, "Memory error on create whiteboard data packet buf\n");
 			return -1;
