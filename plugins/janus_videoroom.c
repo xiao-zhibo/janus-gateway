@@ -3293,7 +3293,9 @@ struct janus_plugin_result *janus_videoroom_handle_message(janus_plugin_session 
 				wret.command_buf = NULL;
 				json_object_set_new(response, "index", json_integer(wret.ret));
 			}
-		} else if (cmd_type == KLPackageType_EnableUserDraw || cmd_type == KLPackageType_SceneOrderChange || cmd_type == KLPackageType_DeleteScene) {
+		} else if (cmd_type == KLPackageType_EnableUserDraw 
+			|| cmd_type == KLPackageType_SceneOrderChange 
+			|| cmd_type == KLPackageType_DeleteScene) {
 			json_t *extension_json = json_object_get(root, "extension");
 			char *extension = json_string_value(extension_json);
 
@@ -3877,8 +3879,6 @@ void janus_videoroom_incoming_data(janus_plugin_session *handle, char *buf, int 
 					janus_videoroom_relay_participant_packet(p, &xiao_packet);
 				}
 				janus_mutex_unlock(&videoroom->participants_mutex);
-				// g_free(wret.command_buf);
-				// wret.command_buf = NULL;
 			} else {
 			
 				/* 返回关键帧 */
@@ -3887,8 +3887,6 @@ void janus_videoroom_incoming_data(janus_plugin_session *handle, char *buf, int 
 					xiao_packet.total_size = wret.keyframe_len;
 					xiao_packet.xiao_data_packet_buf = wret.keyframe_buf;
 				    janus_videoroom_relay_participant_packet(participant, &xiao_packet);
-				    g_free(wret.keyframe_buf);
-				    wret.keyframe_buf = NULL;
 				}
 				/* 返回指令帧 */
 				if (wret.command_len > 0 && wret.command_buf != NULL) {
@@ -3896,8 +3894,6 @@ void janus_videoroom_incoming_data(janus_plugin_session *handle, char *buf, int 
 					xiao_packet.total_size = wret.command_len;
 					xiao_packet.xiao_data_packet_buf = wret.command_buf;
 					janus_videoroom_relay_participant_packet(participant, &xiao_packet);
-					g_free(wret.command_buf);
-					wret.command_buf = NULL;
 				}
 			}
 		} else {
@@ -3909,6 +3905,14 @@ void janus_videoroom_incoming_data(janus_plugin_session *handle, char *buf, int 
 			janus_mutex_lock_nodebug(&participant->listeners_mutex);
 			g_slist_foreach(participant->listeners, janus_videoroom_relay_data_packet, &packet);
 			janus_mutex_unlock_nodebug(&participant->listeners_mutex);
+		}
+		if (wret.command_buf) {
+			g_free(wret.command_buf);
+			wret.command_buf = NULL;
+		}
+		if (wret.keyframe_buf) {
+			g_free(wret.keyframe_buf);
+			wret.keyframe_buf = NULL;
 		}
 	} else {
 		JANUS_LOG(LOG_INFO, "Got a DataChannel message other type: %d\n", participant->xiao_data_packet_header->msg_type);
