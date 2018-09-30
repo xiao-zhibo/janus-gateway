@@ -671,6 +671,7 @@ int janus_whiteboard_add_scene_l(janus_whiteboard *whiteboard, Pb__Scene *newSce
 	void *buffer = g_malloc0(length);
 	if (length!= 0 && buffer == NULL) {
 		JANUS_LOG(LOG_WARN, "Save scene data fail. Out of memory when allocating memory for tmp file buffer\n");
+		g_free(buffer);
 		return -1;
 	}
 	JANUS_LOG(LOG_INFO, "janus_whiteboard_add_scene_l  44444444444444444\n");
@@ -683,8 +684,10 @@ int janus_whiteboard_add_scene_l(janus_whiteboard *whiteboard, Pb__Scene *newSce
 	}
 	if (ret == 0) {
 		JANUS_LOG(LOG_ERR, "Error happens when saving keyframe packet index to basefile: %s\n", whiteboard->filename);
+		g_free(buffer);
 		return -1;
 	}
+	g_free(buffer);
 	JANUS_LOG(LOG_INFO, "janus_whiteboard_add_scene_l  5555555555555\n");
 	return 1;
 }
