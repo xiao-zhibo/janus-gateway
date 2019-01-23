@@ -18,10 +18,10 @@ PROTOBUF_C__BEGIN_DECLS
 typedef struct _Pb__Command Pb__Command;
 typedef struct _Pb__Point Pb__Point;
 typedef struct _Pb__Line Pb__Line;
+typedef struct _Pb__Page Pb__Page;
 typedef struct _Pb__Scene Pb__Scene;
 typedef struct _Pb__Package Pb__Package;
 typedef struct _Pb__KeyFrame Pb__KeyFrame;
-typedef struct _Pb__PageIndex Pb__PageIndex;
 typedef struct _Pb__Header Pb__Header;
 
 
@@ -72,6 +72,22 @@ struct  _Pb__Line
     , 0, 0, 0, 0,NULL }
 
 
+struct  _Pb__Page
+{
+  ProtobufCMessage base;
+  int32_t scene;
+  int32_t page;
+  int32_t timestamp;
+  int32_t angle;
+  float scale;
+  float move_x;
+  float move_y;
+};
+#define PB__PAGE__INIT \
+ { PROTOBUF_C_MESSAGE_INIT (&pb__page__descriptor) \
+    , 0, 0, 0, 0, 0, 0, 0 }
+
+
 struct  _Pb__Scene
 {
   ProtobufCMessage base;
@@ -101,10 +117,11 @@ struct  _Pb__Package
   size_t n_scenes;
   Pb__Scene **scenes;
   char *extension;
+  Pb__Page *page_info;
 };
 #define PB__PACKAGE__INIT \
  { PROTOBUF_C_MESSAGE_INIT (&pb__package__descriptor) \
-    , 0, 0, 0, 0, 0,NULL, 0,NULL, NULL, 0,NULL, (char *)protobuf_c_empty_string }
+    , 0, 0, 0, 0, 0,NULL, 0,NULL, NULL, 0,NULL, (char *)protobuf_c_empty_string, NULL }
 
 
 struct  _Pb__KeyFrame
@@ -120,18 +137,6 @@ struct  _Pb__KeyFrame
     , 0, 0, 0, 0 }
 
 
-struct  _Pb__PageIndex
-{
-  ProtobufCMessage base;
-  int32_t scene;
-  int32_t page;
-  int32_t timestamp;
-};
-#define PB__PAGE_INDEX__INIT \
- { PROTOBUF_C_MESSAGE_INIT (&pb__page_index__descriptor) \
-    , 0, 0, 0 }
-
-
 struct  _Pb__Header
 {
   ProtobufCMessage base;
@@ -139,10 +144,10 @@ struct  _Pb__Header
   int32_t duration;
   size_t n_keyframes;
   Pb__KeyFrame **keyframes;
-  size_t n_pageindexs;
-  Pb__PageIndex **pageindexs;
   size_t n_scenes;
   Pb__Scene **scenes;
+  size_t n_pages;
+  Pb__Page **pages;
 };
 #define PB__HEADER__INIT \
  { PROTOBUF_C_MESSAGE_INIT (&pb__header__descriptor) \
@@ -206,6 +211,25 @@ Pb__Line *
 void   pb__line__free_unpacked
                      (Pb__Line *message,
                       ProtobufCAllocator *allocator);
+/* Pb__Page methods */
+void   pb__page__init
+                     (Pb__Page         *message);
+size_t pb__page__get_packed_size
+                     (const Pb__Page   *message);
+size_t pb__page__pack
+                     (const Pb__Page   *message,
+                      uint8_t             *out);
+size_t pb__page__pack_to_buffer
+                     (const Pb__Page   *message,
+                      ProtobufCBuffer     *buffer);
+Pb__Page *
+       pb__page__unpack
+                     (ProtobufCAllocator  *allocator,
+                      size_t               len,
+                      const uint8_t       *data);
+void   pb__page__free_unpacked
+                     (Pb__Page *message,
+                      ProtobufCAllocator *allocator);
 /* Pb__Scene methods */
 void   pb__scene__init
                      (Pb__Scene         *message);
@@ -263,25 +287,6 @@ Pb__KeyFrame *
 void   pb__key_frame__free_unpacked
                      (Pb__KeyFrame *message,
                       ProtobufCAllocator *allocator);
-/* Pb__PageIndex methods */
-void   pb__page_index__init
-                     (Pb__PageIndex         *message);
-size_t pb__page_index__get_packed_size
-                     (const Pb__PageIndex   *message);
-size_t pb__page_index__pack
-                     (const Pb__PageIndex   *message,
-                      uint8_t             *out);
-size_t pb__page_index__pack_to_buffer
-                     (const Pb__PageIndex   *message,
-                      ProtobufCBuffer     *buffer);
-Pb__PageIndex *
-       pb__page_index__unpack
-                     (ProtobufCAllocator  *allocator,
-                      size_t               len,
-                      const uint8_t       *data);
-void   pb__page_index__free_unpacked
-                     (Pb__PageIndex *message,
-                      ProtobufCAllocator *allocator);
 /* Pb__Header methods */
 void   pb__header__init
                      (Pb__Header         *message);
@@ -312,6 +317,9 @@ typedef void (*Pb__Point_Closure)
 typedef void (*Pb__Line_Closure)
                  (const Pb__Line *message,
                   void *closure_data);
+typedef void (*Pb__Page_Closure)
+                 (const Pb__Page *message,
+                  void *closure_data);
 typedef void (*Pb__Scene_Closure)
                  (const Pb__Scene *message,
                   void *closure_data);
@@ -320,9 +328,6 @@ typedef void (*Pb__Package_Closure)
                   void *closure_data);
 typedef void (*Pb__KeyFrame_Closure)
                  (const Pb__KeyFrame *message,
-                  void *closure_data);
-typedef void (*Pb__PageIndex_Closure)
-                 (const Pb__PageIndex *message,
                   void *closure_data);
 typedef void (*Pb__Header_Closure)
                  (const Pb__Header *message,
@@ -336,10 +341,10 @@ typedef void (*Pb__Header_Closure)
 extern const ProtobufCMessageDescriptor pb__command__descriptor;
 extern const ProtobufCMessageDescriptor pb__point__descriptor;
 extern const ProtobufCMessageDescriptor pb__line__descriptor;
+extern const ProtobufCMessageDescriptor pb__page__descriptor;
 extern const ProtobufCMessageDescriptor pb__scene__descriptor;
 extern const ProtobufCMessageDescriptor pb__package__descriptor;
 extern const ProtobufCMessageDescriptor pb__key_frame__descriptor;
-extern const ProtobufCMessageDescriptor pb__page_index__descriptor;
 extern const ProtobufCMessageDescriptor pb__header__descriptor;
 
 PROTOBUF_C__END_DECLS

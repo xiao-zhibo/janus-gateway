@@ -36,23 +36,33 @@ typedef enum {
  	KLPackageType_DeleteScene = 8,
  	KLPackageType_ModifyScene = 9,
  	KLPackageType_SceneOrderChange = 10,
-	KLPackageType_Init = 11,
-	KLPackageType_Callback = 12,
+	KLPackageType_PageChange = 11,
 } KLDataPackageType;
 
 #define MAX_PACKET_CAPACITY 100000
 #define BASE_PACKET_CAPACITY 100
 
+typedef struct janus_page {
+	int scene;
+	int page;
+	int angle;
+	float scale;
+	float move_x;
+	float move_y;
+	Pb__KeyFrame *key_frame;
+} janus_page;
+
 typedef struct janus_scene {
 	char *source_id;
 	char *source_url;
-	int page_num;
 	int type;
 	int index;
+	janus_page **pages;
+	int page_num;
 
 	/*! 坐标存page, 指针指向相应的keyframe。用于快速定位筛选出符合的场景数据给回前端 */
-	Pb__KeyFrame **page_keyframes;
-	int page_keyframe_maxnum;
+	// Pb__KeyFrame **page_keyframes;
+	// int page_keyframe_maxnum;
 } janus_scene;
 
 /*! \brief Structure that represents a whiteboard */
@@ -62,11 +72,6 @@ typedef struct janus_whiteboard {
 	/*! \brief Filename of this whiteboard file */ 
 	char *filename;
 
-	char *oss_path;
-	janus_io_info *scene_info;
-	janus_io_info *header_info;
-	janus_io_info *page_info;
-	janus_io_info *packet_info;
 	/*! \brief whiteboard header file */
 	FILE *header_file;
 	/*! \brief whiteboard scene data */
@@ -78,9 +83,11 @@ typedef struct janus_whiteboard {
 	
 	//! 坐标存scene, 指针指向相应的keyframe。用于快速定位筛选出符合的场景数据给回前端 
 	GHashTable *scenes;
-	int scene;
-	int page;
+
+	janus_page cur_page;
 	GPtrArray *packages;
+	// int scene;
+	// int page;
 
 	int64_t start_timestamp;
 	
@@ -115,7 +122,7 @@ void oss_init(const char *io_folder);
  * @param[in] dir Path of the directory to save the recording into (will try to create it if it doesn't exist)
  * @param[in] filename Filename to use for the recording
  * @returns A valid janus_whiteboard instance in case of success, NULL otherwise */
-janus_whiteboard *janus_whiteboard_create(const char *oss_path, const char *local_dir, const char *filename);
+janus_whiteboard *janus_whiteboard_create(const char *local_dir, const char *filename);
 /*! \brief Save an RTP whiteboard frame in the whiteboard
  * @param[in] whiteboard The janus_whiteboard instance to save the frame to
  * @param[in] buffer The frame data to save

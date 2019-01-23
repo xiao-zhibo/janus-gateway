@@ -44,172 +44,12 @@ int      janus_whiteboard_on_receive_switch_scene_l(janus_whiteboard *whiteboard
 int      janus_whiteboard_generate_and_save_l(janus_whiteboard *whiteboard);
 int 	 janus_whiteboard_add_scene_l(janus_whiteboard *whiteboard, Pb__Scene *newScene);
 janus_scene *janus_whiteboard_get_scene(janus_whiteboard *whiteboard, int scene_index);
+janus_page *janus_whiteboard_get_page(janus_whiteboard *whiteboard, int scene, int page);
+janus_page *janus_whiteboard_set_page(janus_whiteboard *whiteboard, Pb__Page *page_info);
 static void janus_whiteboard_scene_free(janus_scene *scene);
-
-static janus_io *janus_oss_io = NULL;
-
-void oss_init(const char *io_folder) {
-	void *io = dlopen(io_folder, RTLD_NOW | RTLD_GLOBAL);
-	if (!io) {
-		JANUS_LOG(LOG_ERR, "open janus oss error: %s\n", dlerror());
-	} else {
-		create_i *create = (create_i*) dlsym(io, "create");
-		const char *dlsym_error = dlerror();
-		if (dlsym_error) {
-			JANUS_LOG(LOG_ERR, "\tCouldn't load symbol 'create': %s\n", dlsym_error);
-		}
-		janus_oss_io = create();
-		if (!janus_oss_io) {
-			JANUS_LOG(LOG_ERR, "create janus oss io error.\n");
-		}
-		janus_oss_io->init("");
-		JANUS_LOG(LOG_ERR, "oss get_api_compatibility: %d\n", janus_oss_io->get_api_compatibility());
-	}
-}
-
-janus_whiteboard *janus_whiteboard_create_with_oss(const char *oss_path, const char *dir, const char *filename);
 janus_whiteboard *janus_whiteboard_create_with_file(const char *dir, const char *filename);
 
-janus_whiteboard *janus_whiteboard_create_with_oss(const char *oss_path, const char *dir, const char *filename) {
-	if(!janus_whiteboard_check_diretory(dir)) {
-		return NULL;
-	}
-	dir == NULL ? "" : dir;
 
-	janus_whiteboard *whiteboard = g_malloc0(sizeof(janus_whiteboard));
-	if(whiteboard == NULL) {
-		JANUS_LOG(LOG_FATAL, "Out of Memory when alloc memory for struct whiteboard!\n");
-		return NULL;
-	}
-
-	const size_t length = 1024;
-	/* generate filename */
-	whiteboard->scene_info = NULL;
-	whiteboard->header_info = NULL;
-	whiteboard->page_info = NULL;
-	whiteboard->packet_info = NULL;
-	if (oss_path && strlen(oss_path) > 0) {
-		char packet_path[length], header_path[length], scene_path[length], page_path[length];
-		memset(scene_path,   0, length);
-		memset(header_path, 0, length);
-		memset(page_path,  0, length);
-		memset(packet_path,  0, length);
-		g_snprintf(packet_path,   length, "%s/%s.data", oss_path, filename);
-		g_snprintf(header_path, length, "%s/%s.head", oss_path, filename);
-		g_snprintf(scene_path, length, "%s/%s.scene", oss_path, filename);
-		g_snprintf(page_path, length, "%s/%s.page", oss_path, filename);
-
-		JANUS_LOG(LOG_WARN, "new scene io info: %s!\n", scene_path);
-		whiteboard->scene_info = janus_io_info_new(scene_path);
-		JANUS_LOG(LOG_WARN, "new header io info!\n");
-		whiteboard->header_info = janus_io_info_new(header_path);
-		JANUS_LOG(LOG_WARN, "new page io info!\n");
-		whiteboard->page_info = janus_io_info_new(page_path);
-		JANUS_LOG(LOG_WARN, "new packet io info!\n");
-		whiteboard->packet_info = janus_io_info_new(packet_path);
-		JANUS_LOG(LOG_WARN, "whiteboard io info new success!\n");
-		
-		JANUS_LOG(LOG_WARN, "init scene io info!\n");
-		if (janus_oss_io && janus_oss_io->io_info_create(whiteboard->scene_info) < 0) {
-			JANUS_LOG(LOG_WARN, "init scene io info error!\n");
-			// g_free(whiteboard);
-			return NULL;
-		}
-		JANUS_LOG(LOG_WARN, "init header io info!\n");
-		if (janus_oss_io && janus_oss_io->io_info_create(whiteboard->header_info) < 0) {
-			JANUS_LOG(LOG_WARN, "init header io info error!\n");
-			g_free(whiteboard);
-			return NULL;
-		}
-		JANUS_LOG(LOG_WARN, "init page io info!\n");
-		if (janus_oss_io && janus_oss_io->io_info_create(whiteboard->page_info) < 0) {
-			JANUS_LOG(LOG_WARN, "init page io info error!\n");
-			g_free(whiteboard);
-			return NULL;
-		}
-		JANUS_LOG(LOG_WARN, "init packet io info!\n");
-		if (janus_oss_io && janus_oss_io->io_info_create(whiteboard->packet_info) < 0) {
-			JANUS_LOG(LOG_WARN, "init packet io info error!\n");
-			g_free(whiteboard);
-			return NULL;
-		}
-	}
-	JANUS_LOG(LOG_WARN, "whiteboard io info init success!\n");
-
-	/* generate filename */
-	whiteboard->dir = NULL;
-	whiteboard->filename = NULL;
-	whiteboard->header_file = NULL;
-	whiteboard->file = NULL;
-	char data_file_name[length], header_file_name[length], scene_file_name[length], page_file_name[length];
-	memset(data_file_name,   0, length);
-	memset(header_file_name, 0, length);
-	memset(scene_file_name,  0, length);
-	memset(page_file_name,  0, length);
-	g_snprintf(data_file_name,   length, "%s/%s.data", dir, filename);
-	g_snprintf(header_file_name, length, "%s/%s.head", dir, filename);
-	g_snprintf(scene_file_name, length, "%s/%s.scene", dir, filename);
-	g_snprintf(page_file_name, length, "%s/%s.page", dir, filename);
-
-	if (janus_oss_io && whiteboard->scene_info && whiteboard->header_info && whiteboard->page_info && whiteboard->packet_info) {
-		if (janus_oss_io->read_data_to_file(whiteboard->scene_info, scene_file_name) < 0) {
-			g_free(whiteboard);
-			return NULL;
-		}
-		if (janus_oss_io->read_data_to_file(whiteboard->header_info, header_file_name) < 0) {
-			g_free(whiteboard);
-			return NULL;
-		}
-		if (janus_oss_io->read_data_to_file(whiteboard->page_info, page_file_name) < 0) {
-			g_free(whiteboard);
-			return NULL;
-		}
-		if (janus_oss_io->read_data_to_file(whiteboard->packet_info, data_file_name) < 0) {
-			g_free(whiteboard);
-			return NULL;
-		}
-	}
-
-	/* Try opening the data file */
-	whiteboard->file = fopen(data_file_name, "ab+");
-	if(whiteboard->file == NULL) {
-		JANUS_LOG(LOG_ERR, "fopen %s error: %d\n", data_file_name, errno);
-		g_free(whiteboard);
-		return NULL;
-	}
-	/* Try opening the header file */
-	whiteboard->header_file = fopen(header_file_name, "ab+");
-	if(whiteboard->header_file == NULL) {
-		/* avoid memory leak */
-		fclose(whiteboard->file);
-		JANUS_LOG(LOG_ERR, "fopen %s error: %d\n", header_file_name, errno);
-		g_free(whiteboard);
-		return NULL;
-	}
-	/* Try opening the scene data file */
-	whiteboard->scene_file = fopen(scene_file_name, "ab+");
-	if (whiteboard->scene_file == NULL) {
-		fclose(whiteboard->file);
-		fclose(whiteboard->header_file);
-		JANUS_LOG(LOG_ERR, "fopen %s error: %d\n", scene_file_name, errno);
-		g_free(whiteboard);
-		return NULL;
-	}
-	/* Try opening the page index file */
-	whiteboard->page_file = fopen(page_file_name, "ab+");
-	if (whiteboard->page_file == NULL) {
-		fclose(whiteboard->file);
-		fclose(whiteboard->header_file);
-		fclose(whiteboard->scene_file);
-		JANUS_LOG(LOG_ERR, "fopen %s error: %d\n", page_file_name, errno);
-		g_free(whiteboard);
-		return NULL;
-	}
-	if(dir)
-		whiteboard->dir = g_strdup(dir);
-	whiteboard->filename = g_strdup(filename);
-	return whiteboard;
-}
 
 janus_whiteboard *janus_whiteboard_create_with_file(const char *dir, const char *filename) {
 	if(!janus_whiteboard_check_diretory(dir)) {
@@ -320,6 +160,47 @@ gboolean janus_whiteboard_check_diretory(const char *dir) {
 	return TRUE;
 }
 
+janus_scene *janus_whiteboard_get_scene(janus_whiteboard *whiteboard, int scene_index) {
+	return (janus_scene*)g_hash_table_lookup(whiteboard->scenes, GINT_TO_POINTER(scene_index));
+}
+
+janus_page *janus_whiteboard_get_page(janus_whiteboard *whiteboard, int scene, int page) {
+	janus_scene *scene_info = janus_whiteboard_get_scene(whiteboard, scene);
+	if (scene_info && scene_info->pages && page >= 0 && page < scene_info->page_num) {
+		if (scene_info->pages[page] == NULL) {
+			janus_page *page_info = g_malloc0(sizeof(janus_page));
+			page_info->scene = scene;
+			page_info->page = page;
+			page_info->scale = 1;
+			scene_info->pages[page] = page_info;
+		}
+		return scene_info->pages[page];
+	}
+	return NULL;
+}
+
+janus_page *janus_whiteboard_set_page(janus_whiteboard *whiteboard, Pb__Page *page_info) {
+	janus_scene *scene_info = janus_whiteboard_get_scene(whiteboard, page_info->scene);
+	if (scene_info && scene_info->pages && page_info->page >= 0 && page_info->page < scene_info->page_num) {
+		janus_page *page = scene_info->pages[page_info->page];
+		if (page == NULL) {
+			page = g_malloc0(sizeof(janus_page));
+			if (!page) {
+				return NULL;
+			}
+			scene_info->pages[page_info->page] = page;
+		}
+		page->scene 	= page_info->scene;
+		page->page 	= page_info->page;
+		page->angle 	= page_info->angle;
+		page->scale 	= page_info->scale;
+		page->move_x = page_info->move_x;
+		page->move_y = page_info->move_y;
+		return page;
+	}
+	return NULL;
+}
+
 char janus_whiteboard_package_check(janus_whiteboard *whiteboard, Pb__Package *package) {
 	int scene_num = g_hash_table_size(whiteboard->scenes);
 	if (package->scene < 0 || package->scene >= scene_num) {
@@ -418,6 +299,7 @@ int janus_whiteboard_remove_packets_l(Pb__Package** packages, int start_index, i
 int janus_whiteboard_init_scene_from_file_l(janus_whiteboard *whiteboard) {
 	whiteboard->scenes = g_hash_table_new_full(NULL, NULL, NULL, (GDestroyNotify)janus_whiteboard_scene_free);
 
+	// init scene data from scene file
 	fseek(whiteboard->scene_file, 0, SEEK_SET);
 	JANUS_LOG(LOG_WARN, "scene file seek: %d\n", ferror(whiteboard->scene_file));
 	size_t pkt_len = 0;
@@ -436,15 +318,14 @@ int janus_whiteboard_init_scene_from_file_l(janus_whiteboard *whiteboard) {
 		}
 
 		janus_scene *j_scene 					= g_malloc0(sizeof(janus_scene));
+		j_scene->index 							= tmp_scene->index;
 		j_scene->source_url 					= g_strdup(tmp_scene->resource);
 		j_scene->page_num 						= tmp_scene->pagecount;
-		j_scene->page_keyframes       			= g_malloc0(sizeof(Pb__KeyFrame*) * j_scene->page_num);
-		j_scene->page_keyframe_maxnum 			= 0;
-		j_scene->index 							= tmp_scene->index;
+		j_scene->pages 							= g_malloc0(sizeof(janus_page*) * j_scene->page_num);
 		if (tmp_scene->resourceid != NULL) {
 			j_scene->source_id = g_strdup(tmp_scene->resourceid);
 		} else {
-			j_scene->source_id = "";
+			j_scene->source_id = NULL;
 		}
 
 		g_hash_table_insert(whiteboard->scenes, GINT_TO_POINTER(tmp_scene->index), j_scene);
@@ -455,7 +336,56 @@ int janus_whiteboard_init_scene_from_file_l(janus_whiteboard *whiteboard) {
 		buffer = NULL;
 	}
 	fseek(whiteboard->scene_file, 0, SEEK_END);
-	JANUS_LOG(LOG_INFO, "--->init scene data from file success!\n");
+
+	//init page data from page file
+	fseek(whiteboard->page_file, 0, SEEK_SET);
+	JANUS_LOG(LOG_WARN, "page file seek: %d\n", ferror(whiteboard->page_file));
+	while ( janus_whiteboard_read_packet_from_file(&buffer, &pkt_len, whiteboard->page_file) > 0) {
+		if (buffer == NULL) {
+			JANUS_LOG(LOG_WARN, "parse whiteboard pgae package error: %s\n", whiteboard->filename);
+			continue;
+		}
+		Pb__Page *tmp_page = pb__page__unpack(NULL, pkt_len, (const uint8_t*)buffer);
+		if (tmp_page == NULL) {
+			JANUS_LOG(LOG_WARN, "Parse whiteboard page data error.\n");
+			fseek(whiteboard->page_file, 0, SEEK_END);
+			g_free(buffer);
+			return -1;
+		}
+
+		janus_scene *scene_data = janus_whiteboard_get_scene(whiteboard, tmp_page->scene);
+		if (scene_data == NULL) {
+			JANUS_LOG(LOG_WARN, "whiteboard: page's scene data error.\n");
+			fseek(whiteboard->page_file, 0, SEEK_END);
+			g_free(buffer);
+			return -1;
+		}
+		janus_page *page_info = scene_data->pages[tmp_page->page];
+		if (page_info == NULL) {
+			page_info = g_malloc0(sizeof(janus_page));
+			if (page_info == NULL) {
+				JANUS_LOG(LOG_WARN, "whiteboard; init page data error.\n");
+				fseek(whiteboard->page_file, 0, SEEK_END);
+				g_free(buffer);
+				return -1;
+			}
+			scene_data->pages[tmp_page->page] = page_info;
+		}
+
+		page_info->scene = tmp_page->scene;
+		page_info->page = tmp_page->page;
+		page_info->angle = tmp_page->angle;
+		page_info->scale = tmp_page->scale;
+		page_info->move_x = tmp_page->move_x;
+		page_info->move_y = tmp_page->move_y;
+		whiteboard->cur_page = *page_info;
+
+		pb__page__free_unpacked(tmp_page, NULL);
+		g_free(buffer);
+		buffer = NULL;
+	}
+	fseek(whiteboard->page_file, 0, SEEK_END);
+	JANUS_LOG(LOG_INFO, "whiteboard: --->init scene page data from file success!\n");
 	return 0;
 }
 
@@ -470,18 +400,28 @@ int janus_whiteboard_parse_or_create_header_l(janus_whiteboard *whiteboard) {
 		JANUS_LOG(LOG_WARN, "init whiteboard scene data error.\n");
 		return -1;
 	}
+	JANUS_LOG(LOG_INFO, "parse header cur_page(scene,page): (%d,%d)\n", whiteboard->cur_page.scene, whiteboard->cur_page.page);
+	if (whiteboard->cur_page.scale == 0 && 
+			whiteboard->cur_page.scene == 0 && 
+			whiteboard->cur_page.page == 0) {
+		whiteboard->cur_page.scene = 0;
+		whiteboard->cur_page.page = 0;
+		whiteboard->cur_page.angle = 0;
+		whiteboard->cur_page.scale = 1;
+		whiteboard->cur_page.move_x = 0;
+		whiteboard->cur_page.move_y = 0;
+		whiteboard->cur_page.key_frame = NULL;
+	}
 
 	int ret = 0;
 	size_t pkt_len;
-	whiteboard->page  = 0;
-	whiteboard->scene = 0;
 	ret = fseek(whiteboard->header_file, 0, SEEK_SET);
 	if (ret < 0) {
 		JANUS_LOG(LOG_ERR, "seek header file error.\n");
 		return -1;
 	}
 
-	// 尝试解析数据到whiteboard->header，如果不成功则执行创建操作
+	// 尝试解析数据到 page的key_frame中，如果不成功则执行创建操作
 	size_t keyframe_len = 0;
 	char *keyframe_buffer = NULL;
 	while(janus_whiteboard_read_packet_from_file(&keyframe_buffer, &keyframe_len, whiteboard->header_file) > 0) {
@@ -490,115 +430,35 @@ int janus_whiteboard_parse_or_create_header_l(janus_whiteboard *whiteboard) {
 		}
 		Pb__KeyFrame *tmp_keyframe = pb__key_frame__unpack(NULL, keyframe_len, (const uint8_t*)keyframe_buffer);
 		if (tmp_keyframe != NULL) {
-			//JANUS_LOG(LOG_INFO, "%s scene(%d) page(%d) keyFrame offset: %d\n", whiteboard->filename, tmp_keyframe->scene, tmp_keyframe->page, tmp_keyframe->offset);
-			ret = fseek(whiteboard->file, tmp_keyframe->offset, SEEK_SET);
-			if (ret < 0) {
-				JANUS_LOG(LOG_ERR, "seek file keyframe offset error.\n");
+			janus_page *page_info = janus_whiteboard_get_page(whiteboard, tmp_keyframe->scene, tmp_keyframe->page);
+			if (page_info == NULL) {
+				JANUS_LOG(LOG_ERR, "key frame page info is null.\n");
 				g_free(keyframe_buffer);
 				keyframe_buffer = NULL;
+				pb__key_frame__free_unpacked(tmp_keyframe, NULL);
 				continue;
 			}
-			char *buf = NULL;
-			if (janus_whiteboard_read_packet_from_file(&buf, &pkt_len, whiteboard->file) > 0) {
-				if (buf == NULL) {
-					g_free(keyframe_buffer);
-					keyframe_buffer = NULL;
-					continue;
-				}
-
-				Pb__Package *package = pb__package__unpack(NULL, pkt_len, (const uint8_t*)buf);
-				if (package == NULL) {
-					JANUS_LOG(LOG_WARN, "Parse whiteboard scene data error.\n");
-					fseek(whiteboard->file, 0, SEEK_END);
-					g_free(buf);
-					g_free(keyframe_buffer);
-					return -1;
-				}
-
-				Pb__KeyFrame *next = g_malloc0(sizeof(Pb__KeyFrame));
-				pb__key_frame__init(next);
-				next->offset    = tmp_keyframe->offset;
-				next->scene     = tmp_keyframe->scene;
-				next->page 		= tmp_keyframe->page;
-				next->timestamp = tmp_keyframe->timestamp;
-
-				janus_scene *tmp_scene = janus_whiteboard_get_scene(whiteboard, package->scene);
-				if (tmp_scene && package->page >= 0 && package->page < tmp_scene->page_num) {
-					Pb__KeyFrame **target_keyframe = &tmp_scene->page_keyframes[package->page];
-					if (*target_keyframe != NULL) {
-						g_free(*target_keyframe);
-					}
-					*target_keyframe = next;
-					if (package->page >= tmp_scene->page_keyframe_maxnum) {
-						tmp_scene->page_keyframe_maxnum = package->page + 1;//scene 从 0 开始
-					}
-
-					// 最后一个关键帧最接近上次白板的最后一页
-					whiteboard->scene = package->scene;
-					whiteboard->page = package->page;
-				}
-
-				// remove tmp package
-				pb__package__free_unpacked(package, NULL);
-				g_free(buf);
-				buf = NULL;
+			
+			if (page_info->key_frame != NULL) {
+				pb__key_frame__free_unpacked(page_info->key_frame, NULL);
+				page_info->key_frame = NULL;
 			}
-
-			pb__key_frame__free_unpacked(tmp_keyframe, NULL);
+			page_info->key_frame = tmp_keyframe;
 		}
 		g_free(keyframe_buffer);
 		keyframe_buffer = NULL;
 	}
 
-	// 一直读到file的末尾，以得出最后页面所在的场景。用于恢复
-	janus_scene *scene = janus_whiteboard_get_scene(whiteboard, whiteboard->scene);
-	if (whiteboard->scene >= 0 && scene != NULL && 
-		whiteboard->page >= 0 && whiteboard->page < scene->page_num && scene->page_keyframes[whiteboard->page] != NULL) {
-
-		fseek(whiteboard->file, scene->page_keyframes[whiteboard->page]->offset, SEEK_SET);
-		Pb__Package *tmp_pkt = NULL;
-		char *buffer = NULL;
-		while(janus_whiteboard_read_packet_from_file(&buffer, &pkt_len, whiteboard->file) > 0) {
-			//JANUS_LOG(LOG_INFO, "pakcage len: %d\n", pkt_len);
-			if(buffer == NULL) {
-				continue;
-			}
-
-			if (tmp_pkt != NULL) {
-				// 释放先前解包留下的packet
-				pb__package__free_unpacked(tmp_pkt, NULL);
-				tmp_pkt = NULL;
-			}
-			tmp_pkt = pb__package__unpack(NULL, pkt_len, (const uint8_t*)buffer);
-			if (tmp_pkt == NULL) {
-				JANUS_LOG(LOG_WARN, "Get an invalid packet when parse header\n");
-			}
-			g_free(buffer);
-		}
-		if (tmp_pkt != NULL) {
-			/* package 的 timestamp 是以毫秒为单位的持续时间，不是日期的时间戳 */
-			whiteboard->scene = tmp_pkt->scene;
-			whiteboard->page = tmp_pkt->page;
-			whiteboard->start_timestamp = janus_whiteboard_get_current_time_l() - tmp_pkt->timestamp;
-		} else {
-			int64_t last_timestamp = scene->page_keyframes[whiteboard->page]->timestamp;
-			whiteboard->start_timestamp = janus_whiteboard_get_current_time_l() - last_timestamp;
-		}
-	} else {
-		JANUS_LOG(LOG_WARN, "Get an invalid packet when parse header\n");
-		whiteboard->start_timestamp = janus_whiteboard_get_current_time_l();
-	}
-
 	fseek(whiteboard->file, 0, SEEK_END);
 	fseek(whiteboard->scene_file, 0, SEEK_END);
 	fseek(whiteboard->page_file, 0, SEEK_END);
-	JANUS_LOG(LOG_INFO, "whiteboard：--->Parse or create header success:(%d, %d)\n", whiteboard->scene, whiteboard->page);
+	JANUS_LOG(LOG_INFO, "whiteboard：--->Parse or create header success:(%d, %d)\n", whiteboard->cur_page.scene, whiteboard->cur_page.page);
 
 	return 0;
 }
 
 /*! 创建白板模块，如果创建成功，则尝试从文件里读取历史保留的数据到当前场景(scene) */
-janus_whiteboard *janus_whiteboard_create(const char *oss_path, const char *local_dir, const char *filename) {
+janus_whiteboard *janus_whiteboard_create(const char *local_dir, const char *filename) {
 	/* Create the recorder */
 	janus_whiteboard *whiteboard = janus_whiteboard_create_with_file(local_dir, filename);
 	if(whiteboard == NULL) {
@@ -619,7 +479,7 @@ janus_whiteboard *janus_whiteboard_create(const char *oss_path, const char *loca
 		g_free(whiteboard);
 		return NULL;
 	}
-	janus_whiteboard_scene_page_data_l(whiteboard, whiteboard->scene, whiteboard->page, whiteboard->packages);
+	janus_whiteboard_scene_page_data_l(whiteboard, whiteboard->cur_page.scene, whiteboard->cur_page.page, whiteboard->packages);
 
 	return whiteboard;
 }
@@ -630,12 +490,13 @@ int janus_whiteboard_add_scene_l(janus_whiteboard *whiteboard, Pb__Scene *newSce
 	j_scene->type       = newScene->type; 
 	j_scene->source_url = g_strdup(newScene->resource);
 	j_scene->page_num = newScene->pagecount;
-	j_scene->page_keyframes = g_malloc0(sizeof(Pb__KeyFrame*) * j_scene->page_num);
-	j_scene->page_keyframe_maxnum = 0;
+	j_scene->pages = g_malloc0(sizeof(Pb__Page*) * j_scene->page_num);
+	// j_scene->page_keyframes = g_malloc0(sizeof(Pb__KeyFrame*) * j_scene->page_num);
+	// j_scene->page_keyframe_maxnum = 0;
 	if (newScene->resourceid != NULL) {
 		j_scene->source_id = g_strdup(newScene->resourceid);
 	} else {
-		j_scene->source_id = "";
+		j_scene->source_id = NULL;
 	}
 
 	int scene_num = g_hash_table_size (whiteboard->scenes);
@@ -646,22 +507,16 @@ int janus_whiteboard_add_scene_l(janus_whiteboard *whiteboard, Pb__Scene *newSce
 	
 	if (newScene->index > scene_num) {
 		JANUS_LOG(LOG_INFO, "whiteboard:janus_whiteboard_add_scene_l: error index: %d\n", newScene->index);
+		janus_whiteboard_scene_free(j_scene);
 		return -1;
 	} else {
 		janus_scene *tmp_scene = janus_whiteboard_get_scene(whiteboard, newScene->index);
 		if (tmp_scene) {
 			JANUS_LOG(LOG_INFO, "whiteboard:source_url: %s, %s\n", tmp_scene->source_url, j_scene->source_url);
 			if (strcmp(tmp_scene->source_url, j_scene->source_url) == 0) {
-				g_free(j_scene->page_keyframes);
-				g_free(j_scene);
+				janus_whiteboard_scene_free(j_scene);
 				return -1;
 			}
-			if (tmp_scene->page_num > 0 && tmp_scene->page_keyframes) {
-				JANUS_LOG(LOG_INFO, "janus_whiteboard_add_scene_l 000000000000000\n");
-				// g_free(tmp_scene->page_keyframes);
-				// g_free(tmp_scene->source_url);
-			}
-			// g_free(tmp_scene);
 		}
 		g_hash_table_insert(whiteboard->scenes, GINT_TO_POINTER(newScene->index), j_scene);
 	}
@@ -674,7 +529,7 @@ int janus_whiteboard_add_scene_l(janus_whiteboard *whiteboard, Pb__Scene *newSce
 		g_free(buffer);
 		return -1;
 	}
-	JANUS_LOG(LOG_INFO, "janus_whiteboard_add_scene_l  44444444444444444\n");
+	
 	pb__scene__pack(newScene, buffer);
 	fseek(whiteboard->scene_file, 0, SEEK_END);
 	size_t ret = fwrite(&length, sizeof(size_t), 1, whiteboard->scene_file);
@@ -682,18 +537,12 @@ int janus_whiteboard_add_scene_l(janus_whiteboard *whiteboard, Pb__Scene *newSce
 	    ret = janus_whiteboard_write_packet_to_file_l(buffer, length, whiteboard->scene_file);
 	    ret = (ret==0) ? 1 : 0;//由于以上函数封装的关系，此处需要对返回的结果处理下 
 	}
+	g_free(buffer);
 	if (ret == 0) {
-		JANUS_LOG(LOG_ERR, "Error happens when saving keyframe packet index to basefile: %s\n", whiteboard->filename);
-		g_free(buffer);
+		JANUS_LOG(LOG_ERR, "Error happens when saving scene packet to basefile: %s\n", whiteboard->filename);
 		return -1;
 	}
-	g_free(buffer);
-	JANUS_LOG(LOG_INFO, "janus_whiteboard_add_scene_l  5555555555555\n");
 	return 1;
-}
-
-janus_scene *janus_whiteboard_get_scene(janus_whiteboard *whiteboard, int scene_index) {
-	return (janus_scene*)g_hash_table_lookup(whiteboard->scenes, GINT_TO_POINTER(scene_index));
 }
 
 janus_whiteboard_result janus_whiteboard_add_scene(janus_whiteboard *whiteboard, int package_type, char *resource_id, char *resource, int page_count, int type, int index) {
@@ -720,7 +569,7 @@ janus_whiteboard_result janus_whiteboard_add_scene(janus_whiteboard *whiteboard,
 	Pb__Package package;
 	pb__package__init(&package);
 	package.type = package_type;
-	package.timestamp = janus_whiteboard_get_current_time_l() - whiteboard->start_timestamp;
+	package.timestamp = janus_whiteboard_get_current_time_l();
 	package.newscene = g_malloc0(sizeof(Pb__Scene));
 	if (!package.newscene) {
 		JANUS_LOG(LOG_WARN, "Error malloc Pb__Scene\n");
@@ -736,6 +585,8 @@ janus_whiteboard_result janus_whiteboard_add_scene(janus_whiteboard *whiteboard,
 	janus_mutex_lock_nodebug(&whiteboard->mutex);
 	if(!whiteboard->file) {
 		janus_mutex_unlock_nodebug(&whiteboard->mutex);
+		g_free(package.newscene->resource);
+		g_free(package.newscene->resourceid);
 		g_free(package.newscene);
 		JANUS_LOG(LOG_WARN, "Error saving frame. whiteboard->file is empty\n");
 		return result;
@@ -744,6 +595,8 @@ janus_whiteboard_result janus_whiteboard_add_scene(janus_whiteboard *whiteboard,
 	result.ret = janus_whiteboard_add_scene_l(whiteboard, package.newscene);
 	if (result.ret <= 0) {
 		janus_mutex_unlock_nodebug(&whiteboard->mutex);
+		g_free(package.newscene->resource);
+		g_free(package.newscene->resourceid);
 		g_free(package.newscene);
 		JANUS_LOG(LOG_WARN, "Error add scene.\n");
 		return result;
@@ -755,6 +608,8 @@ janus_whiteboard_result janus_whiteboard_add_scene(janus_whiteboard *whiteboard,
 	pb__package__pack(&package, result.command_buf);
 	result.package_type = KLPackageType_AddScene;
 
+	g_free(package.newscene->resource);
+	g_free(package.newscene->resourceid);
 	g_free(package.newscene);
 	janus_mutex_unlock_nodebug(&whiteboard->mutex);
 	return result;
@@ -780,7 +635,7 @@ int janus_whiteboard_scenes_data(janus_whiteboard * whiteboard, Pb__Scene **scen
 			if (janusScene->source_id != NULL) {
 				scenes[i]->resourceid = g_strdup(janusScene->source_id);
 			} else {
-				scenes[i]->resourceid = "";
+				scenes[i]->resourceid = NULL;
 			}
 
 			if (i >= scene_num) {
@@ -829,7 +684,11 @@ void janus_whiteboard_packed_data_l(GPtrArray *packages, janus_whiteboard_result
 		for (size_t j = 0; j < package->n_cmd; j ++) {
 			out_pkg.cmd[cmd_index++] = cmd[j];
 		}
+		if (package->page_info != NULL) {
+			out_pkg.page_info = package->page_info;
+		}
 	}
+
 
 	result->command_len = pb__package__get_packed_size(&out_pkg);
 	result->command_buf = g_malloc0(result->command_len);
@@ -874,43 +733,27 @@ void janus_whiteboard_add_pkt_to_packages_l(GPtrArray *packages, Pb__Package* ds
 int janus_whiteboard_scene_page_data_l(janus_whiteboard *whiteboard, int scene, int page, GPtrArray* packages) {
 	if (whiteboard == NULL || whiteboard->file == NULL)
 		return -1;
-	int scene_num = g_hash_table_size(whiteboard->scenes);
-	if (scene < 0) {
-		JANUS_LOG(LOG_WARN, "\"scene_page_data_l\" got a current scene data");
-		scene = whiteboard->scene;
-	}
-	if (scene <0 || scene >= scene_num) {
-		JANUS_LOG(LOG_ERR, "\"scene_page_data_l\" got a request with invalid scene(%d).", scene);
-		return -1;
-	}
-	int package_data_offset = 0;
-	janus_scene *scene_data = janus_whiteboard_get_scene(whiteboard, scene);
-	
-	if (scene_data == NULL) {
-		JANUS_LOG(LOG_ERR, "\"scene_page_data_l\" no scene(%d) data.", scene);
-		return -1;
-	}
-	if (page < 0) {
-		page  = whiteboard->page;
-	}
-	if (page < 0 || page >= scene_data->page_num) {
-		JANUS_LOG(LOG_ERR, "\"scene_page_data_l\" got a request with invalid page(%d).", page);
+
+	janus_page *page_data = janus_whiteboard_get_page(whiteboard, scene, page);
+	if (page_data == NULL) {
+		JANUS_LOG(LOG_WARN, "whiteboard: scene_page_data_l: invalid scene(%d) or page(%d)", scene, page);
 		return -1;
 	}
 
-	Pb__KeyFrame *target_keyframe = scene_data->page_keyframes[page];
-	if (target_keyframe != NULL) {
-		package_data_offset = target_keyframe->offset;
-		JANUS_LOG(LOG_VERB, "Get scene data offset %d\n", package_data_offset);
+	int package_data_offset = 0;
+	if (page_data->key_frame != NULL) {
+		package_data_offset = page_data->key_frame->offset;
+		JANUS_LOG(LOG_VERB, "Get scene page data offset %d\n", package_data_offset);
 	}
+
 	// seek 到文件开头。FIXME:Rison 使用数组存起来 scene--->offset, 就不需要每次从头开始读取了
 	fseek(whiteboard->file, package_data_offset, SEEK_SET);
 	size_t pkt_len, out_len = 0;
 	char *buffer = NULL;
-
 	while(janus_whiteboard_read_packet_from_file(&buffer, &pkt_len, whiteboard->file)) {
 		if(buffer == NULL) {
 			JANUS_LOG(LOG_VERB, "janus_whiteboard_read_packet_from_file error %d\n", pkt_len);
+			fseek(whiteboard->file, 0, SEEK_END);
 			out_len = -1;
 			break;
 		}
@@ -940,9 +783,9 @@ int janus_whiteboard_scene_page_data_l(janus_whiteboard *whiteboard, int scene, 
 
 int janus_whiteboard_have_keyframe_l(janus_whiteboard *whiteboard, int scene, int page) {
 	janus_scene *scene_data = janus_whiteboard_get_scene(whiteboard, scene);
-	if (scene_data && scene_data->page_keyframes) {
-		Pb__KeyFrame *keyFrame = scene_data->page_keyframes[page];
-		if (keyFrame != NULL) {
+	if (scene_data) {
+		janus_page *page_data = scene_data->pages[page];
+		if (page_data && page_data->key_frame) {
 			return 1;
 		}
 	}
@@ -953,54 +796,50 @@ int janus_whiteboard_on_receive_keyframe_l(janus_whiteboard *whiteboard, Pb__Pac
 	if (!whiteboard->header_file || !package)
 		return -1;
 
-	if (package->scene < 0 || package->scene >= MAX_PACKET_CAPACITY) {
-		JANUS_LOG(LOG_WARN, "Save keyframe fail. current is %d, MAX_PACKET_CAPACITY is %d\n", package->scene, MAX_PACKET_CAPACITY);
+	janus_page *page_data = janus_whiteboard_get_page(whiteboard, package->scene, package->page);
+	if (!page_data) {
+		JANUS_LOG(LOG_WARN, "whiteboard: key_frame package match page invalid!\n");
 		return -1;
 	}
 
-	Pb__KeyFrame *next = g_malloc0(sizeof(Pb__KeyFrame));
-	if (next == NULL) {
+	Pb__KeyFrame *key_frame = g_malloc0(sizeof(Pb__KeyFrame));
+	if (key_frame == NULL) {
 		JANUS_LOG(LOG_WARN, "Save keyframe fail. Out of memory when allocating memory for new frame\n");
 		return -1;
 	}
+	pb__key_frame__init(key_frame);
 	fseek(whiteboard->file, 0, SEEK_END);
-	pb__key_frame__init(next);
-	next->offset    = ftell(whiteboard->file);
-	next->scene     = package->scene;
-	next->page 		= package->page;
-	next->timestamp = package->timestamp;
+	key_frame->offset    = ftell(whiteboard->file);
+	key_frame->scene     = package->scene;
+	key_frame->page 		= package->page;
+	key_frame->timestamp = package->timestamp;
 
-	janus_scene *scene_data = janus_whiteboard_get_scene(whiteboard, package->scene);
-	int page_index = package->page;
-	Pb__KeyFrame **target_keyframe = &scene_data->page_keyframes[page_index];
-	if (*target_keyframe != NULL) {
-		g_free(*target_keyframe);
+	if (page_data->key_frame != NULL) {
+		g_free(page_data->key_frame);
 	}
-	*target_keyframe = next;
-	if (page_index >= scene_data->page_keyframe_maxnum) {
-	    scene_data->page_keyframe_maxnum = page_index + 1;//scene 从 0 开始
-	}
+	page_data->key_frame = key_frame;
 
 	/*! 将 keyframe 保存到文件 */
-	size_t length = pb__key_frame__get_packed_size(*target_keyframe);
+	size_t length = pb__key_frame__get_packed_size(key_frame);
 	void *buffer = g_malloc0(length);
 	if (length!= 0 && buffer == NULL) {
 		JANUS_LOG(LOG_WARN, "Save keyframe fail. Out of memory when allocating memory for tmp file buffer\n");
 		return -1;
 	}
 
-	pb__key_frame__pack(*target_keyframe, buffer);
+	pb__key_frame__pack(key_frame, buffer);
 	fseek(whiteboard->header_file, 0, SEEK_END);
 	size_t ret = fwrite(&length, sizeof(size_t), 1, whiteboard->header_file);
 	if (ret == 1) {
 	    ret = janus_whiteboard_write_packet_to_file_l(buffer, length, whiteboard->header_file);
 	    ret = (ret==0) ? 1 : 0;//由于以上函数封装的关系，此处需要对返回的结果处理下 
 	}
+	g_free(buffer);
+
 	if (ret == 0) {
 		JANUS_LOG(LOG_ERR, "Error happens when saving keyframe packet index to basefile: %s\n", whiteboard->filename);
 		return -1;
 	}
-
 	return 0;
 }
 
@@ -1014,28 +853,39 @@ int janus_whiteboard_on_receive_switch_scene_l(janus_whiteboard *whiteboard, Pb_
 		return -1;
 	}
 
-	Pb__PageIndex nextPage;
-	pb__page_index__init(&nextPage);
-	nextPage.scene     = package->scene;
-	nextPage.page 	   = package->page;
-	nextPage.timestamp = package->timestamp;
-	size_t length = pb__page_index__get_packed_size(&nextPage);
+	Pb__Page nextPage;
+	pb__page__init(&nextPage);
+	if (package->page_info != NULL){
+		nextPage = *(package->page_info);
+	} else {
+		janus_page *target_page = janus_whiteboard_get_page(whiteboard, package->scene, package->page);
+		nextPage.scene     = package->scene;
+		nextPage.page 	   = package->page;
+		nextPage.timestamp = package->timestamp;
+		nextPage.angle = target_page->angle;
+		nextPage.scale = target_page->scale;
+		nextPage.move_x = target_page->move_x;
+		nextPage.move_y = target_page->move_y;
+	}
+
+	size_t length = pb__page__get_packed_size(&nextPage);
 	void *buffer = g_malloc0(length);
 	if (length != 0 && buffer == NULL) {
 		JANUS_LOG(LOG_ERR, "Out of memory when allocating memory for tmp switch scene index buffer\n");
 		return -1;
 	}
-	pb__page_index__pack(&nextPage, buffer);
+	pb__page__pack(&nextPage, buffer);
 	size_t ret = fwrite(&length, sizeof(length), 1, whiteboard->page_file);
 	if (ret == 1) {
 		ret = janus_whiteboard_write_packet_to_file_l(buffer, length, whiteboard->page_file);
 		ret = (ret==0) ? 1 : 0;
 	}
+	g_free(buffer);
+
 	if (ret == 0) {
 		JANUS_LOG(LOG_ERR, "Error happens when saving switch scene index to basefile: %s\n", whiteboard->filename);
 		return -1;
 	}
-
 	return 0;
 }
 
@@ -1076,8 +926,9 @@ janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboa
 		janus_mutex_unlock_nodebug(&whiteboard->mutex);
 		return result;
 	}
-	package->timestamp = janus_whiteboard_get_current_time_l() - whiteboard->start_timestamp;
+	package->timestamp = janus_whiteboard_get_current_time_l();
 	JANUS_LOG(LOG_INFO, "whiteboard: package——type：%d\n", package->type);
+	janus_page *cur_page = &whiteboard->cur_page;
 	if (package->type == KLPackageType_AddScene) {
 		// add whiteboard scene
 		result.ret = janus_whiteboard_add_scene_l(whiteboard, package->newscene);
@@ -1096,8 +947,8 @@ janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboa
 		if (scene_num > 0) {
 			JANUS_LOG(LOG_INFO, "whiteboard：KLPackageType_SceneData\n");
 			Pb__Package out_package = *package;
-			out_package.page   = whiteboard->page;
-			out_package.scene  = whiteboard->scene;
+			out_package.page   = whiteboard->cur_page.page;
+			out_package.scene  = whiteboard->cur_page.scene;
 			result.command_len = pb__package__get_packed_size(&out_package);
 			JANUS_LOG(LOG_INFO, "whiteboard:packed_size%d\n", result.command_len);
 			result.command_buf = g_malloc0(result.command_len);
@@ -1112,7 +963,7 @@ janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboa
 		return result;
 	} else if (package->type == KLPackageType_SwitchScenePage) {
 	    // 切换白板场景
-		if (package->scene == whiteboard->scene && package->page == whiteboard->page) {
+		if (package->scene == cur_page->scene && package->page == cur_page->page) {
 			JANUS_LOG(LOG_WARN, "Get a request to switch scene page, but currenttly the whiteboard is on the target %d scene %d page\n", package->scene, package->page);
 		    janus_mutex_unlock_nodebug(&whiteboard->mutex);
 		    result.ret = 0;
@@ -1127,11 +978,33 @@ janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboa
 		}
 		janus_whiteboard_on_receive_switch_scene_l(whiteboard, package);
 		g_ptr_array_set_size(whiteboard->packages, 0);
-		whiteboard->scene = package->scene;
-		whiteboard->page = package->page;
-		int ret = janus_whiteboard_scene_page_data_l(whiteboard, whiteboard->scene, whiteboard->page, whiteboard->packages);
+		int ret = janus_whiteboard_scene_page_data_l(whiteboard, package->scene, package->page, whiteboard->packages);
 		if (ret < 0) {
 			JANUS_LOG(LOG_WARN, "Something wrong happens when fetching scene data with reselt %d\n", ret);
+		}
+		whiteboard->cur_page = *janus_whiteboard_get_page(whiteboard, package->scene, package->page);
+	} else if (package->type == KLPackageType_PageChange) {
+		if (!janus_whiteboard_package_check(whiteboard, package)) {
+			JANUS_LOG(LOG_WARN, "Got a request to page change, but its scene(%d) or page(%d) index is invalid.\n", package->scene, package->page);
+		    result.ret = -1;
+		    pb__package__free_unpacked(package, NULL);
+			janus_mutex_unlock_nodebug(&whiteboard->mutex);
+			return result;
+		}
+		if (package->page_info == NULL) {
+			JANUS_LOG(LOG_WARN, "Got a request to page change, page info is invalid.\n");
+		    result.ret = -1;
+		    pb__package__free_unpacked(package, NULL);
+			janus_mutex_unlock_nodebug(&whiteboard->mutex);
+			return result;
+		}
+
+		package->page_info->scene = package->scene;
+		package->page_info->page = package->page;
+		janus_whiteboard_on_receive_switch_scene_l(whiteboard, package);
+		janus_page *page_info = janus_whiteboard_set_page(whiteboard, package->page_info);
+		if (whiteboard->cur_page.scene == page_info->scene && whiteboard->cur_page.page == page_info->page) {
+			whiteboard->cur_page = *page_info;
 		}
 	} else if(package->type == KLPackageType_CleanDraw) {
 		if (!janus_whiteboard_package_check(whiteboard, package)) {
@@ -1143,14 +1016,14 @@ janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboa
 		}
 	    // 清屏
 		janus_scene *scene = janus_whiteboard_get_scene(whiteboard, package->scene);
-		if (whiteboard->scene == package->scene && whiteboard->page == package->page) {
+		if (cur_page->scene == package->scene && cur_page->page == package->page) {
 			g_ptr_array_set_size(whiteboard->packages, 0);
 			JANUS_LOG(LOG_INFO, "Get a clear screen command, clear local cache data now\n");
 		}
 	} else if (package->type == KLPackageType_ScenePageData) {
 		if (package->scene < 0 && package->page < 0) {
-			package->scene = whiteboard->scene;
-			package->page = whiteboard->page;
+			package->scene = cur_page->scene;
+			package->page = cur_page->page;
 		}
 		if (!janus_whiteboard_package_check(whiteboard, package)) {
 			JANUS_LOG(LOG_WARN, "Got a request get scene page, but its scene(%d) or page(%d) index is invalid.\n", package->scene, package->page);
@@ -1159,9 +1032,9 @@ janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboa
 			janus_mutex_unlock_nodebug(&whiteboard->mutex);
 			return result;
 		}
-		JANUS_LOG(LOG_VERB, "whiteboard：Get scene page data(%d, %d)/(%d, %d)\n", package->scene, package->page, whiteboard->scene, whiteboard->page);
+		JANUS_LOG(LOG_VERB, "whiteboard：Get scene page data(%d, %d)/(%d, %d)\n", package->scene, package->page, cur_page->scene, cur_page->page);
 	    // 请求指定场景的白板数据
-		if (package->scene == whiteboard->scene && package->page == whiteboard->page) {
+		if (package->scene == cur_page->scene && package->page == cur_page->page) {
 			// -1的情况表示请求当前场景
 			janus_whiteboard_packed_data_l(whiteboard->packages, &result);
 		} else {
@@ -1178,7 +1051,6 @@ janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboa
 		return result;
 	}
 
-	//if (package->type != KLPackageType_ScenePageData)// 此处无需考虑非scene data的情况，因为这种情况已在前面处理并返回
 	if (package->type == KLPackageType_KeyFrame || package->type == KLPackageType_CleanDraw) {
 		if (!janus_whiteboard_package_check(whiteboard, package)) {
 			JANUS_LOG(LOG_WARN, "Got a request to switch scene page, but its scene(%d) or page(%d) index is invalid.\n", package->scene, package->page);
@@ -1220,7 +1092,7 @@ janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboa
 	}
 	
 	// 保存数据到当前场景（内存），以便快速处理KLPackageType_ScenePageData指令
-	if (package->scene == whiteboard->scene && package->page == whiteboard->page) {
+	if (package->scene == cur_page->scene && package->page == cur_page->page) {
 		janus_whiteboard_add_pkt_to_packages_l(whiteboard->packages, package);
 	} else {
 		pb__package__free_unpacked(package, NULL);
@@ -1256,212 +1128,29 @@ int janus_whiteboard_close(janus_whiteboard *whiteboard) {
 		JANUS_LOG(LOG_INFO, "whiteboard scene file is %zu bytes: %s\n", fsize, whiteboard->filename);
 	}
 
-	if (janus_oss_io && whiteboard->scene_info) {
-		janus_oss_io->io_info_close(whiteboard->scene_info);
-		janus_io_info_destroy(whiteboard->scene_info);
-		whiteboard->scene_info = NULL;
-		JANUS_LOG(LOG_INFO, "close scene info to oss.");
-	}
-	if (janus_oss_io && whiteboard->header_info) {
-		janus_oss_io->io_info_close(whiteboard->header_info);
-		janus_io_info_destroy(whiteboard->header_info);
-		whiteboard->header_info = NULL;
-		JANUS_LOG(LOG_INFO, "close header info to oss.");
-	}
-	if (janus_oss_io && whiteboard->page_info) {
-		janus_oss_io->io_info_close(whiteboard->page_info);
-		janus_io_info_destroy(whiteboard->page_info);
-		whiteboard->page_info = NULL;
-		JANUS_LOG(LOG_INFO, "close page info to oss.");
-	}
-	if (janus_oss_io && whiteboard->packet_info) {
-		janus_oss_io->io_info_close(whiteboard->packet_info);
-		janus_io_info_destroy(whiteboard->packet_info);
-		whiteboard->packet_info = NULL;
-		JANUS_LOG(LOG_INFO, "close data info to oss.");
-	}
 	janus_mutex_unlock_nodebug(&whiteboard->mutex);
 	return 0;
 }
 
-/*! 将header和data保存到一个文件
-    @returns 失败返回-1， 正常返回1 */
-int janus_whiteboard_generate_and_save_l(janus_whiteboard *whiteboard) {
-	if (!whiteboard || !whiteboard->header_file || !whiteboard->file)
-		return -1;
-	Pb__Header header;
-	pb__header__init(&header);
-	header.version     = 1;
-	header.duration    = janus_whiteboard_get_current_time_l() - whiteboard->start_timestamp;
-	header.n_keyframes = 0;
-	header.keyframes   = g_malloc0(sizeof(Pb__KeyFrame*) * MAX_PACKET_CAPACITY);
-	if (header.keyframes == NULL) {
-		JANUS_LOG(LOG_ERR, "Oop, out of memory when alloc memory for creating header.keyframes\n");
-		return -1;
-	}
-	header.n_pageindexs = 0;
-	header.pageindexs   = g_malloc0(sizeof(Pb__PageIndex*) * MAX_PACKET_CAPACITY);
-	if (header.pageindexs == NULL) {
-		JANUS_LOG(LOG_ERR, "Oop, out of memory when alloc memory for creating header.pageindexs\n");
-		return -1;
-	}
-	header.n_scenes = g_hash_table_size(whiteboard->scenes);
-	header.scenes = g_malloc0(sizeof(Pb__Scene*) * header.n_scenes);
-
-	// 将keyframe读取进内存
-	fseek(whiteboard->header_file, 0L, SEEK_SET);
-	size_t keyframe_len = 0;
-	while(fread(&keyframe_len, sizeof(keyframe_len), 1, whiteboard->header_file) == 1) {
-		char *buffer = g_malloc0(keyframe_len);
-		if (buffer == NULL) {
-			JANUS_LOG(LOG_ERR, "Oop, out of memory when alloc memory for reading keyframe file.\n");
-			break;
-		}
-		if (janus_whiteboard_read_packet_from_file_l(buffer, keyframe_len, whiteboard->header_file) < 0) {
-			JANUS_LOG(LOG_ERR, "Error happens when reading keyframe index packet from basefile: %s\n", whiteboard->filename);
-			g_free(buffer);
-			break;
-		}
-		Pb__KeyFrame *tmp_keyframe = pb__key_frame__unpack(NULL, keyframe_len, (const uint8_t*)buffer);
-		if (tmp_keyframe != NULL) {
-			header.keyframes[header.n_keyframes] = tmp_keyframe;
-			header.n_keyframes ++;
-			if (header.n_keyframes >= MAX_PACKET_CAPACITY) {
-				JANUS_LOG(LOG_WARN, "Can not push more keyframes now. header is bigger than MAX_PACKET_CAPACITY:%d\n", MAX_PACKET_CAPACITY);
-				g_free(buffer);
-				break;
-			}
-		}
-		g_free(buffer);
-	}
-
-	// 将switch scene读进内存
-	fseek(whiteboard->page_file, 0L, SEEK_SET);
-	size_t switchscene_len = 0;
-	while(fread(&switchscene_len, sizeof(switchscene_len), 1, whiteboard->page_file) == 1) {
-		char *buffer = g_malloc0(switchscene_len);
-		if (buffer == NULL) {
-			JANUS_LOG(LOG_ERR, "Oop, out of memory when alloc memory for reading scene file\n");
-			break;
-		}
-		if (janus_whiteboard_read_packet_from_file_l(buffer, switchscene_len, whiteboard->page_file) < 0) {
-			JANUS_LOG(LOG_ERR, "Error happens when reading switch scene index packet from basefile: %s\n", whiteboard->filename);
-			g_free(buffer);
-			break;
-		}
-		Pb__PageIndex *tmp_switchscene = pb__page_index__unpack(NULL, switchscene_len, (const uint8_t*)buffer);
-		if (tmp_switchscene != NULL) {
-			header.pageindexs[header.n_pageindexs] = tmp_switchscene;
-			header.n_pageindexs ++;
-			if (header.n_pageindexs >= MAX_PACKET_CAPACITY) {
-				JANUS_LOG(LOG_WARN, "Can't push more switchscene package now. it is bigger than MAX_PACKET_CAPACITY:%d\n", MAX_PACKET_CAPACITY);
-				g_free(buffer);
-				break;
-			}
-		}
-		g_free(buffer);
-	}
-
-	// 将scene data读进内存
-	fseek(whiteboard->scene_file, 0L, SEEK_SET);
-	size_t scene_data_len = 0;
-	while(fread(&scene_data_len, sizeof(scene_data_len), 1, whiteboard->scene_file) == 1) {
-		char *buffer = g_malloc0(scene_data_len);
-		if (buffer == NULL) {
-			JANUS_LOG(LOG_ERR, "Oop, out of memory when alloc memory for reading scene file\n");
-			break;
-		}
-		if (janus_whiteboard_read_packet_from_file_l(buffer, scene_data_len, whiteboard->scene_file) < 0) {
-			JANUS_LOG(LOG_ERR, "Error happens when reading switch scene data from basefile: %s\n", whiteboard->filename);
-			g_free(buffer);
-			break;
-		}
-		Pb__Scene *tmp_scene = pb__scene__unpack(NULL, scene_data_len, (const uint8_t*)buffer);
-		if (tmp_scene != NULL && tmp_scene->index < header.n_scenes) {
-			header.scenes[tmp_scene->index] = tmp_scene;
-		}
-		g_free(buffer);
-	}
-
-	// 输出到文件
-	const size_t file_len = 1024;
-	char file_name[file_len];
-	memset(file_name, 0, file_len);
-	if(whiteboard->dir) {
-		g_snprintf(file_name, file_len, "%s/%s", whiteboard->dir, whiteboard->filename);
-	} else {
-		g_snprintf(file_name, file_len, "%s", whiteboard->filename);
-	}
-	FILE *file = fopen(file_name, "ab+");
-	if (file != NULL) {
-		// 打包header
-		size_t header_len = pb__header__get_packed_size(&header);
-		size_t ret = fwrite(&header_len, sizeof(size_t), 1, file);
-		if (ret == 1) {
-			void * header_buf = g_malloc0(header_len);
-			if (header_len != 0 && header_buf == NULL) {
-				JANUS_LOG(LOG_ERR, "Oop, out of memory when alloc memory for saving headers.\n");
-				g_free(header.keyframes);
-				fclose(file);
-				return -1;
-			}
-			pb__header__pack(&header, header_buf);
-
-			// 及时腾出内存空间
-			size_t i;
-			for(i=0; i<header.n_keyframes; i++) {
-				if (header.keyframes[i] != NULL) {
-					pb__key_frame__free_unpacked(header.keyframes[i], NULL);
-					header.keyframes[i] = NULL;
-				}
-			}
-			g_free(header.keyframes);
-			header.n_keyframes = 0;
-			for (i=0; i<header.n_pageindexs; i++) {
-				if (header.pageindexs[i] != NULL) {
-					pb__page_index__free_unpacked(header.pageindexs[i], NULL);
-					header.pageindexs[i] = NULL;
-				}
-			}
-			g_free(header.pageindexs);
-			header.n_pageindexs = 0;
-
-			ret = janus_whiteboard_write_packet_to_file_l(header_buf, header_len, file);
-			g_free(header_buf);
-		}
-
-		// 从whiteboard->file复制数据
-		fseek(whiteboard->file, 0L, SEEK_SET);
-		size_t tmp_len = 1024*4;//4k
-		void*  tmp_buf = g_malloc0(tmp_len);
-		while(1) {
-			size_t read_len = fread(tmp_buf, sizeof(unsigned char), tmp_len, whiteboard->file);
-			if (read_len <= 0) {
-				JANUS_LOG(LOG_INFO, "Whiteboard save all data success.\n");
-				break;
-			}
-			if (janus_whiteboard_write_packet_to_file_l(tmp_buf, read_len, file) < 0) {
-				JANUS_LOG(LOG_WARN, "Error happens when saving whiteboard data.\n");
-				break;
-			}
-		}
-		g_free(tmp_buf);
-		fclose(file);
-		file = NULL;
-	}
-
-	return 1;
-}
-
 static void janus_whiteboard_scene_free(janus_scene *scene) {
-	for (int start_index = 0; start_index < scene->page_num; start_index++) {
-		if (scene->page_keyframes[start_index] != NULL) {
-			g_free(scene->page_keyframes[start_index]);
-			scene->page_keyframes[start_index] = NULL;
+	for (int index = 0; index < scene->page_num; index++) {
+		janus_page *page = scene->pages[index];
+		if (page != NULL) {
+			if (page->key_frame){
+				g_free(page->key_frame);
+			}
+			scene->pages[index] = NULL;
 		}
 	}
-	g_free(scene->page_keyframes);
-	scene->page_keyframes = NULL;
+	g_free(scene->pages);
+	scene->pages = NULL;
+
+	if (scene->source_id != NULL) {
+		g_free(scene->source_id);
+	}
+	if (scene->source_url != NULL) {
+		g_free(scene->source_url);
+	}
 	g_free(scene);
 }
 /*! 清理内部变量 */
@@ -1525,8 +1214,8 @@ janus_whiteboard_result janus_whiteboard_packet_extension(janus_whiteboard *whit
 		JANUS_LOG(LOG_WARN, "Error saving frame. whiteboard->file is empty\n");
 		return result;
 	}
-	package.scene = whiteboard->scene;
-	package.page = whiteboard->page;
+	package.scene = whiteboard->cur_page.scene;
+	package.page = whiteboard->cur_page.page;
 
 	result.ret = 0;
 	result.command_len = pb__package__get_packed_size(&package);
@@ -1534,5 +1223,175 @@ janus_whiteboard_result janus_whiteboard_packet_extension(janus_whiteboard *whit
 	pb__package__pack(&package, result.command_buf);
 
 	janus_mutex_unlock_nodebug(&whiteboard->mutex);
+	g_free(package.extension);
 	return result;
+}
+
+/*! 将header和data保存到一个文件
+    @returns 失败返回-1， 正常返回1 */
+int janus_whiteboard_generate_and_save_l(janus_whiteboard *whiteboard) {
+	if (!whiteboard || !whiteboard->header_file || !whiteboard->file)
+		return -1;
+	Pb__Header header;
+	pb__header__init(&header);
+	header.version     = 1;
+	header.duration    = janus_whiteboard_get_current_time_l() - whiteboard->start_timestamp;
+	header.n_keyframes = 0;
+	header.keyframes   = g_malloc0(sizeof(Pb__KeyFrame*) * MAX_PACKET_CAPACITY);
+	if (header.keyframes == NULL) {
+		JANUS_LOG(LOG_ERR, "Oop, out of memory when alloc memory for creating header.keyframes\n");
+		return -1;
+	}
+	header.n_pages = 0;
+	header.pages   = g_malloc0(sizeof(Pb__Page*) * MAX_PACKET_CAPACITY);
+	if (header.pages == NULL) {
+		JANUS_LOG(LOG_ERR, "Oop, out of memory when alloc memory for creating header.pageindexs\n");
+		return -1;
+	}
+	header.n_scenes = g_hash_table_size(whiteboard->scenes);
+	header.scenes = g_malloc0(sizeof(Pb__Scene*) * header.n_scenes);
+
+	// 将keyframe读取进内存
+	fseek(whiteboard->header_file, 0L, SEEK_SET);
+	size_t keyframe_len = 0;
+	while(fread(&keyframe_len, sizeof(keyframe_len), 1, whiteboard->header_file) == 1) {
+		char *buffer = g_malloc0(keyframe_len);
+		if (buffer == NULL) {
+			JANUS_LOG(LOG_ERR, "Oop, out of memory when alloc memory for reading keyframe file.\n");
+			break;
+		}
+		if (janus_whiteboard_read_packet_from_file_l(buffer, keyframe_len, whiteboard->header_file) < 0) {
+			JANUS_LOG(LOG_ERR, "Error happens when reading keyframe index packet from basefile: %s\n", whiteboard->filename);
+			g_free(buffer);
+			break;
+		}
+		Pb__KeyFrame *tmp_keyframe = pb__key_frame__unpack(NULL, keyframe_len, (const uint8_t*)buffer);
+		if (tmp_keyframe != NULL) {
+			header.keyframes[header.n_keyframes] = tmp_keyframe;
+			header.n_keyframes ++;
+			if (header.n_keyframes >= MAX_PACKET_CAPACITY) {
+				JANUS_LOG(LOG_WARN, "Can not push more keyframes now. header is bigger than MAX_PACKET_CAPACITY:%d\n", MAX_PACKET_CAPACITY);
+				g_free(buffer);
+				break;
+			}
+		}
+		g_free(buffer);
+	}
+
+	// 将switch scene读进内存
+	fseek(whiteboard->page_file, 0L, SEEK_SET);
+	size_t switchscene_len = 0;
+	while(fread(&switchscene_len, sizeof(switchscene_len), 1, whiteboard->page_file) == 1) {
+		char *buffer = g_malloc0(switchscene_len);
+		if (buffer == NULL) {
+			JANUS_LOG(LOG_ERR, "Oop, out of memory when alloc memory for reading scene file\n");
+			break;
+		}
+		if (janus_whiteboard_read_packet_from_file_l(buffer, switchscene_len, whiteboard->page_file) < 0) {
+			JANUS_LOG(LOG_ERR, "Error happens when reading switch scene index packet from basefile: %s\n", whiteboard->filename);
+			g_free(buffer);
+			break;
+		}
+		Pb__Page *tmp_switchscene = pb__page__unpack(NULL, switchscene_len, (const uint8_t*)buffer);
+		if (tmp_switchscene != NULL) {
+			header.pages[header.n_pages] = tmp_switchscene;
+			header.n_pages ++;
+			if (header.n_pages >= MAX_PACKET_CAPACITY) {
+				JANUS_LOG(LOG_WARN, "Can't push more switchscene package now. it is bigger than MAX_PACKET_CAPACITY:%d\n", MAX_PACKET_CAPACITY);
+				g_free(buffer);
+				break;
+			}
+		}
+		g_free(buffer);
+	}
+
+	// 将scene data读进内存
+	fseek(whiteboard->scene_file, 0L, SEEK_SET);
+	size_t scene_data_len = 0;
+	while(fread(&scene_data_len, sizeof(scene_data_len), 1, whiteboard->scene_file) == 1) {
+		char *buffer = g_malloc0(scene_data_len);
+		if (buffer == NULL) {
+			JANUS_LOG(LOG_ERR, "Oop, out of memory when alloc memory for reading scene file\n");
+			break;
+		}
+		if (janus_whiteboard_read_packet_from_file_l(buffer, scene_data_len, whiteboard->scene_file) < 0) {
+			JANUS_LOG(LOG_ERR, "Error happens when reading switch scene data from basefile: %s\n", whiteboard->filename);
+			g_free(buffer);
+			break;
+		}
+		Pb__Scene *tmp_scene = pb__scene__unpack(NULL, scene_data_len, (const uint8_t*)buffer);
+		if (tmp_scene != NULL && tmp_scene->index < header.n_scenes) {
+			header.scenes[tmp_scene->index] = tmp_scene;
+		}
+		g_free(buffer);
+	}
+
+	// 输出到文件
+	const size_t file_len = 1024;
+	char file_name[file_len];
+	memset(file_name, 0, file_len);
+	if(whiteboard->dir) {
+		g_snprintf(file_name, file_len, "%s/%s", whiteboard->dir, whiteboard->filename);
+	} else {
+		g_snprintf(file_name, file_len, "%s", whiteboard->filename);
+	}
+	FILE *file = fopen(file_name, "ab+");
+	if (file != NULL) {
+		// 打包header
+		size_t header_len = pb__header__get_packed_size(&header);
+		size_t ret = fwrite(&header_len, sizeof(size_t), 1, file);
+		if (ret == 1) {
+			void * header_buf = g_malloc0(header_len);
+			if (header_len != 0 && header_buf == NULL) {
+				JANUS_LOG(LOG_ERR, "Oop, out of memory when alloc memory for saving headers.\n");
+				g_free(header.keyframes);
+				fclose(file);
+				return -1;
+			}
+			pb__header__pack(&header, header_buf);
+
+			// 及时腾出内存空间
+			size_t i;
+			for(i=0; i<header.n_keyframes; i++) {
+				if (header.keyframes[i] != NULL) {
+					pb__key_frame__free_unpacked(header.keyframes[i], NULL);
+					header.keyframes[i] = NULL;
+				}
+			}
+			g_free(header.keyframes);
+			header.n_keyframes = 0;
+			for (i=0; i<header.n_pages; i++) {
+				if (header.pages[i] != NULL) {
+					pb__page__free_unpacked(header.pages[i], NULL);
+					header.pages[i] = NULL;
+				}
+			}
+			g_free(header.pages);
+			header.n_pages = 0;
+
+			ret = janus_whiteboard_write_packet_to_file_l(header_buf, header_len, file);
+			g_free(header_buf);
+		}
+
+		// 从whiteboard->file复制数据
+		fseek(whiteboard->file, 0L, SEEK_SET);
+		size_t tmp_len = 1024*4;//4k
+		void*  tmp_buf = g_malloc0(tmp_len);
+		while(1) {
+			size_t read_len = fread(tmp_buf, sizeof(unsigned char), tmp_len, whiteboard->file);
+			if (read_len <= 0) {
+				JANUS_LOG(LOG_INFO, "Whiteboard save all data success.\n");
+				break;
+			}
+			if (janus_whiteboard_write_packet_to_file_l(tmp_buf, read_len, file) < 0) {
+				JANUS_LOG(LOG_WARN, "Error happens when saving whiteboard data.\n");
+				break;
+			}
+		}
+		g_free(tmp_buf);
+		fclose(file);
+		file = NULL;
+	}
+
+	return 1;
 }

@@ -24,6 +24,16 @@ message Line {
     repeated Point points = 4;
 }
 
+message Page {
+    int32 scene = 1;
+    int32 page = 2;
+    int32 timestamp = 3;
+    int32 angle = 4;
+    float scale = 5;
+    float move_x = 6;
+    float move_y = 7;
+}
+
 message Scene {
     int32 type = 1;
     string resource = 2;
@@ -42,6 +52,7 @@ message Package {
     Scene newScene = 7;
     repeated Scene scenes = 8;
     string extension = 9;
+    Page page_info = 10;
 }
 
 message KeyFrame {
@@ -51,17 +62,11 @@ message KeyFrame {
     int64 timestamp = 4;
 }
 
-message PageIndex {
-    int32 scene = 1;
-    int32 page = 2;
-    int32 timestamp = 3;
-}
-
 message Header {
     int32 version = 1;
     int32 duration = 2;
     repeated KeyFrame keyframes = 3;
-    repeated PageIndex pageindexs = 4;
-    repeated Scene scenes = 5;
+    repeated Scene scenes = 4;
+    repeated Page pages = 5;
 }
 
