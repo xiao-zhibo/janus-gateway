@@ -785,6 +785,8 @@ typedef struct janus_videoroom_data_packet {
 #define MESSAGE_TYPE_CHAT 2
 #define MESSAGE_TYPE_SYSTEM 3
 #define MESSAGE_TYPE_ACK 4
+#define MESSAGE_TYPE_H5Courseware 5
+#define MESSAGE_TYPE_KeepAlive 6
 
 /* JSON serialization options */
 static size_t json_format = JSON_INDENT(3) | JSON_PRESERVE_ORDER;
@@ -3819,36 +3821,38 @@ void janus_videoroom_incoming_data(janus_plugin_session *handle, char *buf, int 
 		return;
 	}
 	janus_mutex_lock(&participant->data_recv_mutex);
-	JANUS_LOG(LOG_INFO, "Got a DataChannel message to forward, result\n");
+	JANUS_LOG(LOG_INFO, "Get a dataChannel message to process\n");
 	if (janus_videoroom_wrap_datachannel_data_packet(participant, buf, len) <= 0) {
 		// 需要继续等待更多的数据封包或者遇到无法处理的情况
-		JANUS_LOG(LOG_INFO, "Got a DataChannel message to record, continue....\n");
+		JANUS_LOG(LOG_INFO, "This dataChannel message is not complete, continue....\n");
 		janus_mutex_unlock(&participant->data_recv_mutex);
 		return;
 	}
-	JANUS_LOG(LOG_INFO, "Got a DataChannel message success......%d\n", participant->xiao_data_packet_header->msg_type);
+
+	unsigned char msg_type = participant->xiao_data_packet_header->msg_type;
+	JANUS_LOG(LOG_INFO, "Get dataChannel message success, msg type %d\n", msg_type);
 
 	/* Save the message if we're recording */
 	// int ret = janus_recorder_save_frame(participant->drc, participant->xiao_data_packet_buf, participant->xiao_data_packet_received);
 	/* data数据就是白板数据，使用保存白板的格式保存之*/
-	if (participant->xiao_data_packet_header->msg_type == MESSAGE_TYPE_WHITEBOARD) {
-	   /*@returns wret 为白板数据请求封装。前段有部分特殊指令需要返回关键帧或普通的指令帧 */
+	if (msg_type == MESSAGE_TYPE_WHITEBOARD) {
+		/*@returns wret 为白板数据请求封装。前段有部分特殊指令需要返回关键帧或普通的指令帧 */
 		janus_whiteboard_result wret = janus_whiteboard_save_package(participant->room->whiteboard, 
 			participant->xiao_data_packet_buf, participant->xiao_data_packet_received);
-		JANUS_LOG(LOG_INFO, "Got a DataChannel message (%d bytes) to forward, result: %d,%d\n", wret.keyframe_len+wret.command_len, wret.ret, wret.package_type);
+		JANUS_LOG(LOG_INFO, "Get a whiteboard message (%d bytes) to forward, result: %d,%d\n", wret.keyframe_len+wret.command_len, wret.ret, wret.package_type);
 		
-		/* ret 大于0时表示发起者发出了指令，将有数据需要返回. */
+		/* ret 大于0时表示发起者发出了数据指令，将有数据需要返回给请求者。否则是将数据转发给订阅者 */
 		if (wret.ret > 0) {
 			janus_xiao_data_packet xiao_packet;
-			xiao_packet.version = JANUS_DATA_PKT_VERSION;
-			xiao_packet.msg_type = MESSAGE_TYPE_WHITEBOARD;
+			xiao_packet.version              = JANUS_DATA_PKT_VERSION;
+			xiao_packet.msg_type             = MESSAGE_TYPE_WHITEBOARD;
 			xiao_packet.xiao_data_packet_buf = wret.command_buf;
-			xiao_packet.total_size = wret.command_len;
+			xiao_packet.total_size           = wret.command_len;
 
 			if (wret.package_type == KLPackageType_AddScene) {
-				JANUS_LOG(LOG_INFO, "DataChannel Return added scene command to participant: %d, %d\n", wret.command_len, wret.command_buf);
+				JANUS_LOG(LOG_INFO, "DataChannel return added scene command to publishers: %d, %d\n", wret.command_len, wret.command_buf);
 
-				xiao_packet.total_size = wret.command_len;
+				xiao_packet.total_size           = wret.command_len;
 				xiao_packet.xiao_data_packet_buf = wret.command_buf;
 
 				janus_videoroom *videoroom = participant->room;
@@ -3865,27 +3869,29 @@ void janus_videoroom_incoming_data(janus_plugin_session *handle, char *buf, int 
 			
 				/* 返回关键帧 */
 				if (wret.keyframe_len > 0 && wret.keyframe_buf != NULL) {
-					JANUS_LOG(LOG_INFO, "DataChannel Return keyframe to viewer.\n");
-					xiao_packet.total_size = wret.keyframe_len;
+					JANUS_LOG(LOG_INFO, "DataChannel return keyframe to publisher.\n");
+					xiao_packet.total_size           = wret.keyframe_len;
 					xiao_packet.xiao_data_packet_buf = wret.keyframe_buf;
 				    janus_videoroom_relay_participant_packet(participant, &xiao_packet);
 				}
 				/* 返回指令帧 */
 				if (wret.command_len > 0 && wret.command_buf != NULL) {
-					JANUS_LOG(LOG_INFO, "DataChannel Return normal packeted command frame to viewer.\n");
-					xiao_packet.total_size = wret.command_len;
+					JANUS_LOG(LOG_INFO, "DataChannel return normal packeted command frame to publisher.\n");
+					xiao_packet.total_size           = wret.command_len;
 					xiao_packet.xiao_data_packet_buf = wret.command_buf;
 					janus_videoroom_relay_participant_packet(participant, &xiao_packet);
 				}
 			}
 		} else {
 			/* Relay to all listeners */
-			JANUS_LOG(LOG_INFO, "DataChannel other meesage ---> send to others.\n");
-			janus_videoroom_data_packet packet;
-			packet.data = buf;
-			packet.length = len;
+			janus_xiao_data_packet xiao_packet;
+			xiao_packet.version              = JANUS_DATA_PKT_VERSION;
+			xiao_packet.msg_type             = MESSAGE_TYPE_WHITEBOARD;
+			xiao_packet.xiao_data_packet_buf = participant->xiao_data_packet_buf;
+			xiao_packet.total_size           = participant->xiao_data_packet_received;
+
 			janus_mutex_lock_nodebug(&participant->listeners_mutex);
-			g_slist_foreach(participant->listeners, janus_videoroom_relay_data_packet, &packet);
+			g_slist_foreach(participant->listeners, janus_videoroom_relay_subscriber_packet, &xiao_packet);
 			janus_mutex_unlock_nodebug(&participant->listeners_mutex);
 		}
 		if (wret.command_buf) {
@@ -3896,44 +3902,56 @@ void janus_videoroom_incoming_data(janus_plugin_session *handle, char *buf, int 
 			g_free(wret.keyframe_buf);
 			wret.keyframe_buf = NULL;
 		}
+	} else if (msg_type == MESSAGE_TYPE_KeepAlive) {
+		/* 客户端发过来的心跳消息，原路返回，用于请求者自查 Datachannel 是否正常 */
+		janus_xiao_data_packet xiao_packet;
+		xiao_packet.version              = JANUS_DATA_PKT_VERSION;
+		xiao_packet.msg_type             = MESSAGE_TYPE_KeepAlive;
+		xiao_packet.xiao_data_packet_buf = participant->xiao_data_packet_buf;
+		xiao_packet.total_size           = participant->xiao_data_packet_received;
+		janus_videoroom_relay_participant_packet(participant, &xiao_packet);
+
 	} else {
-		JANUS_LOG(LOG_INFO, "Got a DataChannel message other type: %d\n", participant->xiao_data_packet_header->msg_type);
+		//JANUS_LOG(LOG_INFO, "Got a DataChannel message other type: %d\n", participant->xiao_data_packet_header->msg_type);
 		/* Save the message if we're recording */
-		int ret = janus_recorder_save_frame(participant->drc, participant->xiao_data_packet_buf, participant->xiao_data_packet_received);
+		/*int ret = */
+		janus_recorder_save_frame(participant->drc, participant->xiao_data_packet_buf, participant->xiao_data_packet_received);
 
 		// send ack of message
-		json_error_t error;
-		JANUS_LOG(LOG_INFO, "Got a DataChannel content: %s\n", participant->xiao_data_packet_buf);
-		json_t *message = json_loads(participant->xiao_data_packet_buf, 0, &error);
+		if (msg_type == MESSAGE_TYPE_CHAT || MESSAGE_TYPE_SYSTEM) {
+			json_error_t error;
+			JANUS_LOG(LOG_INFO, "Get a chat or system msg content: %s\n", participant->xiao_data_packet_buf);
+			json_t *message = json_loads(participant->xiao_data_packet_buf, 0, &error);
 		
-		if (message) {
-			int seq_id = 0;
-			json_t *seq_id_json = json_object_get(message, "seq_id");
-			if(seq_id_json && json_is_integer(seq_id_json))
-				seq_id = json_integer_value(seq_id_json);
+			if (message) {
+				int seq_id = 0;
+				json_t *seq_id_json = json_object_get(message, "seq_id");
+				if(seq_id_json && json_is_integer(seq_id_json))
+					seq_id = json_integer_value(seq_id_json);
 
-			json_t *ack = json_object();
-			json_object_set_new(ack, "ack_id", json_integer(seq_id));
-			json_object_set_new(ack, "message_type", json_integer(participant->xiao_data_packet_header->msg_type));
-			char *content = json_dumps(ack, json_format);
+				json_t *ack = json_object();
+				json_object_set_new(ack, "ack_id", json_integer(seq_id));
+				json_object_set_new(ack, "message_type", json_integer(participant->xiao_data_packet_header->msg_type));
+				char *content = json_dumps(ack, json_format);
 
-			janus_xiao_data_packet xiao_packet;
-			xiao_packet.version              = JANUS_DATA_PKT_VERSION;
-			xiao_packet.msg_type             = MESSAGE_TYPE_ACK;
-			xiao_packet.xiao_data_packet_buf = content;
-			xiao_packet.total_size           = strlen(content);
-			janus_videoroom_relay_participant_packet(participant, &xiao_packet);
+				janus_xiao_data_packet xiao_packet;
+				xiao_packet.version              = JANUS_DATA_PKT_VERSION;
+				xiao_packet.msg_type             = MESSAGE_TYPE_ACK;
+				xiao_packet.xiao_data_packet_buf = content;
+				xiao_packet.total_size           = strlen(content);
+				janus_videoroom_relay_participant_packet(participant, &xiao_packet);
 
-			json_decref(ack);
-			json_decref(message);
-		} else {
-			JANUS_LOG(LOG_WARN, "loads jason error: %d, %s", error.line, error.text);
+				json_decref(ack);
+				json_decref(message);
+			} else {
+				JANUS_LOG(LOG_WARN, "loads json error: %d, %s", error.line, error.text);
+			}
 		}
 
 		/* Relay to all listeners */
 		janus_xiao_data_packet xiao_packet;
 		xiao_packet.version              = JANUS_DATA_PKT_VERSION;
-		xiao_packet.msg_type             = participant->xiao_data_packet_header->msg_type;
+		xiao_packet.msg_type             = msg_type;
 		xiao_packet.xiao_data_packet_buf = participant->xiao_data_packet_buf;
 		xiao_packet.total_size           = participant->xiao_data_packet_received;
 
@@ -3941,13 +3959,12 @@ void janus_videoroom_incoming_data(janus_plugin_session *handle, char *buf, int 
 		g_slist_foreach(participant->listeners, janus_videoroom_relay_subscriber_packet, &xiao_packet);
 		janus_mutex_unlock_nodebug(&participant->listeners_mutex);
 	}
-	//g_free(text);
 	g_free(participant->xiao_data_packet_buf);
 	participant->xiao_data_packet_buf = NULL;
 	participant->xiao_data_packet_received = 0;
 	g_free(participant->xiao_data_packet_header);
 	participant->xiao_data_packet_header = NULL;
-	JANUS_LOG(LOG_INFO, "Got a DataChannel message deal success.");
+	JANUS_LOG(LOG_INFO, "DataChannel message deal success.");
 	janus_mutex_unlock(&participant->data_recv_mutex);
 }
 
