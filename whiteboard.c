@@ -462,7 +462,7 @@ janus_whiteboard *janus_whiteboard_create(const char *local_dir, const char *fil
 	/* Create the recorder */
 	janus_whiteboard *whiteboard = janus_whiteboard_create_with_file(local_dir, filename);
 	if(whiteboard == NULL) {
-		JANUS_LOG(LOG_FATAL, "Out of Memory when init whiteboard with oss!\n");
+		JANUS_LOG(LOG_FATAL, "Out of Memory when init whiteboard!\n");
 		return NULL;
 	}
 

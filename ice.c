@@ -2202,14 +2202,12 @@ static void janus_ice_cb_nice_recv(NiceAgent *agent, guint stream_id, guint comp
 				if(!video) {
 					if(stream->audio_ssrc_peer_orig == 0)
 						stream->audio_ssrc_peer_orig = packet_ssrc;
-					// fixme: RTP and RTCP timestamp synchronization problem for single stream
-					// janus_rtp_header_update(header, &stream->rtp_ctx[0], FALSE, 0);
+					janus_rtp_header_update(header, &stream->rtp_ctx[0], FALSE, 0);
 					header->ssrc = htonl(stream->audio_ssrc_peer_orig);
 				} else {
 					if(stream->video_ssrc_peer_orig[vindex] == 0)
 						stream->video_ssrc_peer_orig[vindex] = packet_ssrc;
-					// fixme: RTP and RTCP timestamp synchronization problem for single stream
-					// janus_rtp_header_update(header, &stream->rtp_ctx[vindex], TRUE, 0);
+					janus_rtp_header_update(header, &stream->rtp_ctx[vindex], TRUE, 0);
 					header->ssrc = htonl(stream->video_ssrc_peer_orig[vindex]);
 				}
 				/* Keep track of payload types too */

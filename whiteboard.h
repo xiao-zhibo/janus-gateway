@@ -114,8 +114,6 @@ typedef struct janus_whiteboard_result {
 /*! \brief De-initialize the whiteboard code */
 // void janus_whiteboard_deinit(void);
 
-void oss_init(const char *io_folder);
-
 /*! \brief Create a new whiteboard
  * \note If no target directory is provided, the current directory will be used. If no filename
  * is passed, a random filename will be used.
