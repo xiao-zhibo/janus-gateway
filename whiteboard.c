@@ -783,7 +783,7 @@ int janus_whiteboard_scene_page_data_l(janus_whiteboard *whiteboard, int scene, 
 
 int janus_whiteboard_have_keyframe_l(janus_whiteboard *whiteboard, int scene, int page) {
 	janus_scene *scene_data = janus_whiteboard_get_scene(whiteboard, scene);
-	if (scene_data) {
+	if (scene_data && page >= 0) {
 		janus_page *page_data = scene_data->pages[page];
 		if (page_data && page_data->key_frame) {
 			return 1;
