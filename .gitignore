@@ -5,6 +5,9 @@
 .tags
 .tags_sorted_by_file
 
+# vscode
+.vscode/
+
 cmdline.c
 cmdline.h
 version.c

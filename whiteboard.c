@@ -1066,9 +1066,13 @@ janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboa
 		if (whiteboard->packages->len == 0) {
 			janus_whiteboard_on_receive_keyframe_l(whiteboard, package);
 		}
-	} else if (!janus_whiteboard_have_keyframe_l(whiteboard, package->scene, package->page)) {
+	} else if (package->page >= 0 && !janus_whiteboard_have_keyframe_l(whiteboard, package->scene, package->page)) {
 		// 修复第一个包不是关键帧的问题
 		janus_whiteboard_on_receive_keyframe_l(whiteboard, package);
+	}
+
+	if (package->page < 0) {
+		JANUS_LOG(LOG_WARN, "Got an un-expect page, page type %d, scene %d, page %d\n", package->type, package->scene, package->page);
 	}
 
 	// 写入到文件记录保存

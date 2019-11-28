@@ -5,9 +5,9 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <glib.h>
 #include "protobuf/command.pb-c.h"
 #include "mutex.h"
-#include "glib.h"
 
 #include "io/io.h"
 
