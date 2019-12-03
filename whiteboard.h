@@ -91,7 +91,7 @@ typedef struct janus_whiteboard {
 
 	int64_t start_timestamp;
 	
-	/*! \brief Mutex to lock/unlock this whiteboard instance */ 
+	/*! Mutex to lock/unlock, 白板锁，更新任何本结构体内的数据都应该上锁 */ 
 	janus_mutex mutex;
 } janus_whiteboard;
 
