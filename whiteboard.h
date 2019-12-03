@@ -24,18 +24,18 @@ typedef enum
 } KLDrawCommandType;
 
 typedef enum {
-	KLPackageType_None = -1,
+	KLPackageType_None = -1,			 //非法
 	KLPackageType_DrawCommand = 0,
-    KLPackageType_SwitchScenePage = 1,
-    KLPackageType_CleanDraw = 2,
-    KLPackageType_ScenePageData = 3,
-    KLPackageType_KeyFrame = 4,
-    KLPackageType_AddScene = 5,
-    KLPackageType_SceneData = 6,
-    KLPackageType_EnableUserDraw = 7,
- 	KLPackageType_DeleteScene = 8,
- 	KLPackageType_ModifyScene = 9,
- 	KLPackageType_SceneOrderChange = 10,
+	KLPackageType_SwitchScenePage = 1,
+	KLPackageType_CleanDraw = 2,
+	KLPackageType_ScenePageData = 3,
+	KLPackageType_KeyFrame = 4,			 //已废弃，关键帧，用于快速切换场景页面
+	KLPackageType_AddScene = 5,
+	KLPackageType_SceneData = 6,		 //废弃？
+	KLPackageType_EnableUserDraw = 7,	 //已废弃，开启/关闭学生画图
+	KLPackageType_DeleteScene = 8,		 //暂不支持，删除场景
+	KLPackageType_ModifyScene = 9,		 //暂不支持，修改场景
+	KLPackageType_SceneOrderChange = 10, //暂不支持，更改场景顺序
 	KLPackageType_PageChange = 11,
 } KLDataPackageType;
 

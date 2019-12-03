@@ -55,7 +55,9 @@ janus_whiteboard *janus_whiteboard_create_with_file(const char *dir, const char 
 	if(!janus_whiteboard_check_diretory(dir)) {
 		return NULL;
 	}
-	dir == NULL ? "" : dir;
+	if (dir == NULL) {
+		dir = "";
+	}
 
 	janus_whiteboard *whiteboard = g_malloc0(sizeof(janus_whiteboard));
 	if(whiteboard == NULL) {
@@ -414,7 +416,6 @@ int janus_whiteboard_parse_or_create_header_l(janus_whiteboard *whiteboard) {
 	}
 
 	int ret = 0;
-	size_t pkt_len;
 	ret = fseek(whiteboard->header_file, 0, SEEK_SET);
 	if (ret < 0) {
 		JANUS_LOG(LOG_ERR, "seek header file error.\n");
@@ -452,7 +453,7 @@ int janus_whiteboard_parse_or_create_header_l(janus_whiteboard *whiteboard) {
 	fseek(whiteboard->file, 0, SEEK_END);
 	fseek(whiteboard->scene_file, 0, SEEK_END);
 	fseek(whiteboard->page_file, 0, SEEK_END);
-	JANUS_LOG(LOG_INFO, "whiteboard：--->Parse or create header success:(%d, %d)\n", whiteboard->cur_page.scene, whiteboard->cur_page.page);
+	JANUS_LOG(LOG_INFO, "whiteboard: --->Parse or create header success:(%d, %d)\n", whiteboard->cur_page.scene, whiteboard->cur_page.page);
 
 	return 0;
 }
@@ -752,7 +753,7 @@ int janus_whiteboard_scene_page_data_l(janus_whiteboard *whiteboard, int scene, 
 	char *buffer = NULL;
 	while(janus_whiteboard_read_packet_from_file(&buffer, &pkt_len, whiteboard->file)) {
 		if(buffer == NULL) {
-			JANUS_LOG(LOG_VERB, "janus_whiteboard_read_packet_from_file error %d\n", pkt_len);
+			JANUS_LOG(LOG_VERB, "janus_whiteboard_read_packet_from_file error %zu\n", pkt_len);
 			fseek(whiteboard->file, 0, SEEK_END);
 			out_len = -1;
 			break;
@@ -891,11 +892,10 @@ int janus_whiteboard_on_receive_switch_scene_l(janus_whiteboard *whiteboard, Pb_
 
 /*! 核心函数
     本函数尝试以白板数据进行解包，对 场景切换，获取场景数据进行额外处理。其余情况正常保存。
-    //FIXME:Rison 是否需要保存场景切换这些包，因为回访也需要用到?
+    //FIXME:Rison 使用消息队列异步处理，因为使用锁，会降低服务器性能
     @returns 保存成功返回非负数。如果有数据返回则表示返回数据的长度，*/
 janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboard, char *buffer, size_t length) {
-	janus_whiteboard_result result = 
-	{
+	janus_whiteboard_result result = {
 		.ret          = -1, /* 大于0时表示发起者发出了指令，将有数据需要返回. */
 		.keyframe_len = 0,
 		.keyframe_buf = NULL,
@@ -904,75 +904,90 @@ janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboa
 		.package_type = KLPackageType_None,
 	};
 
-	if(!whiteboard) {
+	if (!whiteboard) {
 		JANUS_LOG(LOG_ERR, "Error saving frame. Whiteboard is empty\n");
 		return result;
 	}
-	if(!buffer || length <= 0) {
+	if (!buffer || length <= 0) {
 		JANUS_LOG(LOG_WARN, "Error saving frame. Invalid params\n");
 		return result;
 	}
 
 	janus_mutex_lock_nodebug(&whiteboard->mutex);
-	if(!whiteboard->file) {
+	if (!whiteboard->file) {
 		janus_mutex_unlock_nodebug(&whiteboard->mutex);
 		JANUS_LOG(LOG_WARN, "Error saving frame. whiteboard->file is empty\n");
 		return result;
 	}
 
-	Pb__Package *package = pb__package__unpack(NULL, length, (const uint8_t*)buffer);
+	Pb__Package *package = pb__package__unpack(NULL, length, (const uint8_t *)buffer);
 	if (package == NULL) {
 		JANUS_LOG(LOG_WARN, "Error saving frame. Invalid whiteboard packet\n");
 		janus_mutex_unlock_nodebug(&whiteboard->mutex);
 		return result;
 	}
+
+	JANUS_LOG(LOG_INFO, "whiteboard: package type(%d), scene(%d), page(%d)\n", package->type, package->scene, package->page);
+	if (package->type == KLPackageType_None ||
+	 package->type == KLPackageType_KeyFrame || 
+	 package->type == KLPackageType_EnableUserDraw ||
+	 package->type == KLPackageType_DeleteScene ||
+	 package->type == KLPackageType_ModifyScene ||
+	 package->type == KLPackageType_SceneOrderChange) {
+		JANUS_LOG(LOG_WARN, "whiteboard: un-support package type, return now\n");
+		janus_mutex_unlock_nodebug(&whiteboard->mutex);
+		return result;
+	 }
+
 	package->timestamp = janus_whiteboard_get_current_time_l();
-	JANUS_LOG(LOG_INFO, "whiteboard: package——type：%d\n", package->type);
 	janus_page *cur_page = &whiteboard->cur_page;
 	if (package->type == KLPackageType_AddScene) {
-		// add whiteboard scene
+		// 添加一个场景，包含 资源ID，页码数，索引
 		result.ret = janus_whiteboard_add_scene_l(whiteboard, package->newscene);
-		JANUS_LOG(LOG_INFO, "whiteboard:newscene: %s, %d, %d\n", package->newscene->resource, package->newscene->pagecount, package->newscene->index);
+		JANUS_LOG(LOG_INFO, "whiteboard: create a newscene: %s, %d, %d\n", package->newscene->resource, package->newscene->pagecount, package->newscene->index);
 		result.command_len = pb__package__get_packed_size(package);
 		result.command_buf = g_malloc0(result.command_len);
 		pb__package__pack(package, result.command_buf);
 		result.package_type = KLPackageType_AddScene;
-		janus_mutex_unlock_nodebug(&whiteboard->mutex);
 		pb__package__free_unpacked(package, NULL);
+		janus_mutex_unlock_nodebug(&whiteboard->mutex);
 		return result;
+
 	} else if (package->type == KLPackageType_SceneData) {
-		// get whiteboard scene data
+		// 获取当前在在哪个场景和场景内的第几页
 		int scene_num = g_hash_table_size(whiteboard->scenes);
 		result.ret = 1;
 		if (scene_num > 0) {
-			JANUS_LOG(LOG_INFO, "whiteboard：KLPackageType_SceneData\n");
+			JANUS_LOG(LOG_INFO, "whiteboard: KLPackageType_SceneData\n");
 			Pb__Package out_package = *package;
 			out_package.page   = whiteboard->cur_page.page;
 			out_package.scene  = whiteboard->cur_page.scene;
 			result.command_len = pb__package__get_packed_size(&out_package);
-			JANUS_LOG(LOG_INFO, "whiteboard:packed_size%d\n", result.command_len);
+			JANUS_LOG(LOG_INFO, "whiteboard: packed_size %d\n", result.command_len);
 			result.command_buf = g_malloc0(result.command_len);
 			int size = pb__package__pack(&out_package, result.command_buf);
-			JANUS_LOG(LOG_INFO, "whiteboard:command_buf_size%d\n", size);
-		} else {
+			JANUS_LOG(LOG_INFO, "whiteboard: command_buf_size %d\n", size);
+		}
+		else {
 			result.ret = -1;
 		}
 		result.package_type = KLPackageType_SceneData;
-		janus_mutex_unlock_nodebug(&whiteboard->mutex);
 		pb__package__free_unpacked(package, NULL);
+		janus_mutex_unlock_nodebug(&whiteboard->mutex);
 		return result;
+
 	} else if (package->type == KLPackageType_SwitchScenePage) {
-	    // 切换白板场景
+		// 切换白板场景
 		if (package->scene == cur_page->scene && package->page == cur_page->page) {
-			JANUS_LOG(LOG_WARN, "Get a request to switch scene page, but currenttly the whiteboard is on the target %d scene %d page\n", package->scene, package->page);
-		    janus_mutex_unlock_nodebug(&whiteboard->mutex);
-		    result.ret = 0;
-		    pb__package__free_unpacked(package, NULL);
+			JANUS_LOG(LOG_WARN, "Got a request to switch scene page, but currenttly the whiteboard is on the target %d scene %d page\n", package->scene, package->page);
+			result.ret = 0;
+			pb__package__free_unpacked(package, NULL);
+			janus_mutex_unlock_nodebug(&whiteboard->mutex);
 			return result;
 		} else if (!janus_whiteboard_package_check(whiteboard, package)) {
 			JANUS_LOG(LOG_WARN, "Got a request to switch scene page, but its scene(%d) or page(%d) index is invalid.\n", package->scene, package->page);
-		    result.ret = -1;
-		    pb__package__free_unpacked(package, NULL);
+			result.ret = -1;
+			pb__package__free_unpacked(package, NULL);
 			janus_mutex_unlock_nodebug(&whiteboard->mutex);
 			return result;
 		}
@@ -982,31 +997,36 @@ janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboa
 		if (ret < 0) {
 			JANUS_LOG(LOG_WARN, "Something wrong happens when fetching scene data with reselt %d\n", ret);
 		}
+		// 这里不立即返回，是因为需要将此命令数据保存
 		whiteboard->cur_page = *janus_whiteboard_get_page(whiteboard, package->scene, package->page);
+
 	} else if (package->type == KLPackageType_PageChange) {
+		// 页面信息发生更改，如旋转，缩放等
 		if (!janus_whiteboard_package_check(whiteboard, package)) {
 			JANUS_LOG(LOG_WARN, "Got a request to page change, but its scene(%d) or page(%d) index is invalid.\n", package->scene, package->page);
-		    result.ret = -1;
-		    pb__package__free_unpacked(package, NULL);
+			result.ret = -1;
+			pb__package__free_unpacked(package, NULL);
 			janus_mutex_unlock_nodebug(&whiteboard->mutex);
 			return result;
 		}
 		if (package->page_info == NULL) {
 			JANUS_LOG(LOG_WARN, "Got a request to page change, page info is invalid.\n");
-		    result.ret = -1;
-		    pb__package__free_unpacked(package, NULL);
+			result.ret = -1;
+			pb__package__free_unpacked(package, NULL);
 			janus_mutex_unlock_nodebug(&whiteboard->mutex);
 			return result;
 		}
 
 		package->page_info->scene = package->scene;
-		package->page_info->page = package->page;
+		package->page_info->page  = package->page;
 		janus_whiteboard_on_receive_switch_scene_l(whiteboard, package);
 		janus_page *page_info = janus_whiteboard_set_page(whiteboard, package->page_info);
 		if (whiteboard->cur_page.scene == page_info->scene && whiteboard->cur_page.page == page_info->page) {
 			whiteboard->cur_page = *page_info;
 		}
+
 	} else if(package->type == KLPackageType_CleanDraw) {
+	    // 清屏
 		if (!janus_whiteboard_package_check(whiteboard, package)) {
 			JANUS_LOG(LOG_WARN, "Got a request get scene page, but its scene(%d) or page(%d) index is invalid.\n", package->scene, package->page);
 		    result.ret = -1;
@@ -1014,63 +1034,67 @@ janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboa
 			janus_mutex_unlock_nodebug(&whiteboard->mutex);
 			return result;
 		}
-	    // 清屏
 		janus_scene *scene = janus_whiteboard_get_scene(whiteboard, package->scene);
 		if (cur_page->scene == package->scene && cur_page->page == package->page) {
 			g_ptr_array_set_size(whiteboard->packages, 0);
-			JANUS_LOG(LOG_INFO, "Get a clear screen command, clear local cache data now\n");
+			JANUS_LOG(LOG_INFO, "Got a clear screen command, clear local cache data now\n");
 		}
+
 	} else if (package->type == KLPackageType_ScenePageData) {
-		if (package->scene < 0 && package->page < 0) {
+		// 请求指定场景的白板数据
+		if (package->scene < 0 || package->page < 0) {
+			// -1的情况表示请求当前场景
 			package->scene = cur_page->scene;
 			package->page = cur_page->page;
 		}
 		if (!janus_whiteboard_package_check(whiteboard, package)) {
 			JANUS_LOG(LOG_WARN, "Got a request get scene page, but its scene(%d) or page(%d) index is invalid.\n", package->scene, package->page);
-		    result.ret = -1;
-		    pb__package__free_unpacked(package, NULL);
+			result.ret = -1;
+			pb__package__free_unpacked(package, NULL);
 			janus_mutex_unlock_nodebug(&whiteboard->mutex);
 			return result;
 		}
-		JANUS_LOG(LOG_VERB, "whiteboard：Get scene page data(%d, %d)/(%d, %d)\n", package->scene, package->page, cur_page->scene, cur_page->page);
-	    // 请求指定场景的白板数据
+		JANUS_LOG(LOG_VERB, "Got scene page data(%d, %d)/(%d, %d)\n", package->scene, package->page, cur_page->scene, cur_page->page);
 		if (package->scene == cur_page->scene && package->page == cur_page->page) {
-			// -1的情况表示请求当前场景
 			janus_whiteboard_packed_data_l(whiteboard->packages, &result);
 		} else {
-			// 其他场景
+			// TODO: Rison 改成直接报错。目前的情况是 其他场景，只获取，不切换
 			GPtrArray *packages = g_ptr_array_new_full(BASE_PACKET_CAPACITY, (GDestroyNotify)janus_whiteboard_package_free);
 			int num = janus_whiteboard_scene_page_data_l(whiteboard, package->scene, package->page, packages);
 			janus_whiteboard_packed_data_l(packages, &result);
 			g_ptr_array_unref(packages);
 		}
-		janus_mutex_unlock_nodebug(&whiteboard->mutex);
-		JANUS_LOG(LOG_VERB, "whiteboard：Get scene data with keyframe:%d, command:%d\n", result.keyframe_len, result.command_len);
+		JANUS_LOG(LOG_VERB, "Got scene data with keyframe:%d, command:%d\n", result.keyframe_len, result.command_len);
 		pb__package__free_unpacked(package, NULL);
+		janus_mutex_unlock_nodebug(&whiteboard->mutex);
 		result.ret = 1;
 		return result;
 	}
 
+	// 关键帧保存
 	if (package->type == KLPackageType_KeyFrame || package->type == KLPackageType_CleanDraw) {
+		// 关键帧标志和清屏动作，可以认为是一个标准的关键帧
 		if (!janus_whiteboard_package_check(whiteboard, package)) {
-			JANUS_LOG(LOG_WARN, "Got a request to switch scene page, but its scene(%d) or page(%d) index is invalid.\n", package->scene, package->page);
-		    result.ret = -1;
-		    pb__package__free_unpacked(package, NULL);
+			JANUS_LOG(LOG_WARN, "Got a key frame or clean package, but its scene(%d) or page(%d) index is invalid.\n", package->scene, package->page);
+			result.ret = -1;
+			pb__package__free_unpacked(package, NULL);
 			janus_mutex_unlock_nodebug(&whiteboard->mutex);
 			return result;
 		}
-	    // 额外处理关键帧
 		janus_whiteboard_on_receive_keyframe_l(whiteboard, package);
+
 	} else if (package->type == KLPackageType_SwitchScenePage) {
 		// 切换到新页面或者新场景的数据为0也可以认为是关键帧
 		if (whiteboard->packages->len == 0) {
 			janus_whiteboard_on_receive_keyframe_l(whiteboard, package);
 		}
+
 	} else if (package->page >= 0 && !janus_whiteboard_have_keyframe_l(whiteboard, package->scene, package->page)) {
 		// 修复第一个包不是关键帧的问题
 		janus_whiteboard_on_receive_keyframe_l(whiteboard, package);
 	}
 
+	// 打印非法数据，便与跟踪调试
 	if (package->page < 0) {
 		JANUS_LOG(LOG_WARN, "Got an un-expect page, page type %d, scene %d, page %d\n", package->type, package->scene, package->page);
 	}
@@ -1095,15 +1119,15 @@ janus_whiteboard_result janus_whiteboard_save_package(janus_whiteboard *whiteboa
 		JANUS_LOG(LOG_ERR, "Error happens when saving scene data packet to basefile: %s\n", whiteboard->filename);
 	}
 	
-	// 保存数据到当前场景（内存），以便快速处理KLPackageType_ScenePageData指令
+	// 保存数据到当前场景（内存），以便快速处理 KLPackageType_ScenePageData 指令
 	if (package->scene == cur_page->scene && package->page == cur_page->page) {
 		janus_whiteboard_add_pkt_to_packages_l(whiteboard->packages, package);
 	} else {
 		pb__package__free_unpacked(package, NULL);
 	}
 
-	janus_mutex_unlock_nodebug(&whiteboard->mutex);
 	result.ret = 0;
+	janus_mutex_unlock_nodebug(&whiteboard->mutex);
 	return result;
 }
 
